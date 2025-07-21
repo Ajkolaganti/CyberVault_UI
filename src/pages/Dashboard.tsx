@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import {
   Key,
   AlertTriangle,
@@ -181,7 +182,12 @@ console.log('[Dashboard] API_BASE_URL =', API_BASE_URL);
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <Card className="text-center py-16">
-          <h3 className="text-xl font-semibold text-slate-900 mb-2">Loading dashboard...</h3>
+          <LoadingSpinner 
+            variant="lock" 
+            size="lg" 
+            text="Securing your dashboard..." 
+            className="py-8"
+          />
         </Card>
       </div>
     );

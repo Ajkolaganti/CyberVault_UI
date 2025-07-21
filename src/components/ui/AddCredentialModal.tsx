@@ -18,7 +18,7 @@ interface Credential {
 interface AddCredentialModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (credential: Credential) => void;
+  onAdd: () => void; // Changed to simple callback without parameters
 }
 
 export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
@@ -49,8 +49,17 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
 
       const res = await fetch('/api/v1/credentials', {
         method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(formData),
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          type: formData.type,
+          value: formData.password, // Backend expects 'value' field for the password
+          username: formData.username,
+          environment: formData.environment,
+        }),
       });
       
       console.log('Response status:', res.status);
@@ -94,7 +103,7 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
         username: '[REDACTED]' 
       });
       
-      onAdd(newCredential);
+      onAdd(); // Call the callback to refresh the parent list
       setFormData({
         name: '',
         type: 'database',

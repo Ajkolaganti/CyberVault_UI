@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { getAuthHeaders, useAuthStore } from '../store/authStore';
 import {
   Clock,
@@ -389,10 +390,12 @@ export const JITAccess: React.FC = () => {
       {/* Requests List */}
       {loading ? (
         <Card className="text-center py-12">
-          <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Loading requests...
-          </h3>
+          <LoadingSpinner 
+            variant="lock" 
+            size="lg" 
+            text="Securing access requests..." 
+            className="py-6"
+          />
         </Card>
       ) : error ? (
         <Card className="text-center py-12">
