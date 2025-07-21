@@ -1,16 +1,33 @@
-# CyberVault - Privileged Access Management
+# CyberVault - Secure Access Management Platform
 
-A comprehensive privileged access management (PAM) solution with secure authentication and credential management.
+A modern, production-ready credential management and privileged access management (PAM) application built with React, TypeScript, and Express.js.
 
-## 🚀 Features
+## 🌟 Features
 
-- **Secure Authentication**: JWT-based authentication with bcrypt password hashing
-- **Dual Authentication**: Support for both custom JWT and Supabase authentication
-- **Credential Management**: Secure storage and management of privileged credentials
-- **Role-based Access Control**: User roles and permissions management
-- **Session Monitoring**: Real-time session tracking and monitoring
-- **Just-in-Time Access**: Temporary access provisioning
-- **Modern UI**: Beautiful, responsive interface built with React and Tailwind CSS
+### 🔐 Authentication & Authorization
+- **JWT-based authentication** with secure token management
+- **Role-based access control** (User, Manager, Admin)
+- **Strong password validation** (8+ chars, uppercase, lowercase, number, symbol)
+- **Persistent login sessions** with automatic token refresh
+
+### 🗄️ Credential Management
+- **Secure credential vault** with encrypted storage
+- **CRUD operations** for credentials (Create, Read, Update, Delete)
+- **Credential categorization** (Database, API, Server, Application)
+- **Environment-specific credentials** (Production, Staging, Development)
+- **Real-time credential status** monitoring
+
+### ⚡ Just-In-Time (JIT) Access
+- **Temporary access requests** with approval workflows
+- **Time-limited credential access** with automatic expiration
+- **Access request tracking** and audit trails
+- **Emergency access procedures**
+
+### 📊 Monitoring & Analytics
+- **Real-time session monitoring** with live activity tracking
+- **Comprehensive dashboard** with statistics and alerts
+- **Access audit logs** with detailed activity history
+- **Security alerts** and compliance reporting
 
 ## 🛠 Technology Stack
 
