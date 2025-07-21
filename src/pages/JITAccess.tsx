@@ -4,7 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
-import { getAuthHeaders } from '../store/authStore';
+import { getAuthHeaders, useAuthStore } from '../store/authStore';
 import {
   Clock,
   Plus,
@@ -29,6 +29,7 @@ interface AccessRequest {
 }
 
 export const JITAccess: React.FC = () => {
+  const { user, token } = useAuthStore();
   const [selectedTab, setSelectedTab] = useState<'requests' | 'active' | 'history'>('requests');
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,14 +38,97 @@ export const JITAccess: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Helper function to convert duration string to minutes
+  const convertDurationToMinutes = (duration: string): number => {
+    const durationLower = duration.toLowerCase();
+    if (durationLower.includes('30 minutes')) return 30;
+    if (durationLower.includes('1 hour')) return 60;
+    if (durationLower.includes('2 hours')) return 120;
+    if (durationLower.includes('4 hours')) return 240;
+    if (durationLower.includes('8 hours')) return 480;
+    if (durationLower.includes('24 hours')) return 1440;
+    
+    // Default fallback
+    return 60;
+  };
+
+  // Transform backend data to frontend format
+  const transformBackendData = (backendItem: any): AccessRequest => {
+    console.log('Transforming backend item:', backendItem);
+    
+    // Format timestamps for display
+    const formatTimestamp = (timestamp: string) => {
+      try {
+        return new Date(timestamp).toLocaleString();
+      } catch {
+        return timestamp;
+      }
+    };
+
+    // Calculate time remaining for expires_at
+    const formatExpiresAt = (expiresAt: string) => {
+      if (!expiresAt) return undefined;
+      try {
+        const expiryTime = new Date(expiresAt);
+        const now = new Date();
+        const diffMs = expiryTime.getTime() - now.getTime();
+        
+        if (diffMs <= 0) return 'Expired';
+        
+        const minutes = Math.floor(diffMs / (1000 * 60));
+        const hours = Math.floor(minutes / 60);
+        
+        if (hours > 0) {
+          return `${hours}h ${minutes % 60}m`;
+        } else {
+          return `${minutes}m`;
+        }
+      } catch {
+        return expiresAt;
+      }
+    };
+
+    const transformed = {
+      id: backendItem.id,
+      requester: backendItem.username || backendItem.user_email || backendItem.requester || (backendItem.user_id ? `User ID: ${backendItem.user_id}` : 'Current User'),
+      resource: backendItem.resource || backendItem.system || 'Unknown Resource',
+      reason: backendItem.business_justification || backendItem.reason || backendItem.justification || backendItem.description || 'No reason provided',
+      requestedDuration: backendItem.requested_duration || backendItem.requestedDuration || backendItem.duration || '1 hour',
+      status: backendItem.active === true ? 'active' : 
+              backendItem.status || 
+              (backendItem.approved === true ? 'approved' : 
+               backendItem.denied === true ? 'denied' : 
+               backendItem.active === false ? 'expired' : 'pending'),
+      requestTime: formatTimestamp(backendItem.created_at || backendItem.requestTime || new Date().toISOString()),
+      approver: backendItem.approver || backendItem.approved_by,
+      expiresAt: formatExpiresAt(backendItem.expires_at || backendItem.expiresAt),
+      riskLevel: backendItem.risk_level || backendItem.riskLevel || 'medium'
+    };
+    
+    console.log('Transformed to:', transformed);
+    return transformed;
+  };
+
   // API Functions
   const fetchRequests = async () => {
     setLoading(true);
     setRefreshing(true);
     setError(null);
+    
+    // Check if user is authenticated
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders.Authorization) {
+      console.log('No auth token found, user not logged in');
+      setError('Please log in to view JIT access requests');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+    
     try {
+      console.log('Making JIT request with headers:', authHeaders);
       const res = await fetch('/api/v1/jit', {
-        headers: getAuthHeaders(),
+        headers: authHeaders,
       });
       
       console.log('JIT fetch response status:', res.status, res.statusText);
@@ -54,19 +138,36 @@ export const JITAccess: React.FC = () => {
         console.log('JIT fetch data received:', data);
         
         // Handle different possible response structures
-        const requestsList = data.requests || data.items || data || [];
-        setRequests(Array.isArray(requestsList) ? requestsList : []);
-        console.log('Requests set to:', requestsList);
+        const rawRequestsList = data.requests || data.items || data || [];
+        console.log('Raw requests list:', rawRequestsList);
+        
+        // Transform backend data to frontend format
+        const transformedRequests = Array.isArray(rawRequestsList) 
+          ? rawRequestsList.map((item, index) => {
+              console.log(`Transforming item ${index}:`, item);
+              const transformed = transformBackendData(item);
+              console.log(`Transformed item ${index}:`, transformed);
+              return transformed;
+            })
+          : [];
+        
+        console.log('Final transformed requests:', transformedRequests);
+        setRequests(transformedRequests);
       } else {
-        // If backend returns an error, still try to get existing requests
+        // Handle different error statuses
         console.log('JIT endpoint returned error status:', res.status);
-        if (res.status === 404) {
+        if (res.status === 401) {
+          setError('Authentication expired. Please log in again.');
+          console.log('Authentication failed, removing token');
+          localStorage.removeItem('cybervault_token');
+        } else if (res.status === 404) {
           console.log('JIT endpoint not found, using empty array');
           setRequests([]);
         } else {
           // For other errors, try to parse error message
           const errorData = await res.text();
           console.log('Error response:', errorData);
+          setError(`Server error: ${res.status}`);
           setRequests([]);
         }
       }
@@ -82,6 +183,7 @@ export const JITAccess: React.FC = () => {
 
   const handleCreateRequest = async (requestData: {
     resource: string;
+    system?: string;
     reason: string;
     duration: string;
   }) => {
@@ -97,8 +199,9 @@ export const JITAccess: React.FC = () => {
         },
         body: JSON.stringify({
           resource: requestData.resource,
+          ...(requestData.system && { system: requestData.system }),
           reason: requestData.reason,
-          requestedDuration: requestData.duration,
+          durationMinutes: convertDurationToMinutes(requestData.duration),
         }),
       });
 
@@ -110,22 +213,13 @@ export const JITAccess: React.FC = () => {
         
         setShowNewRequestModal(false);
         
-        // If the response includes the created request, add it to local state
+        // If the response includes the created request, transform and add it to local state
         if (responseData && responseData.id) {
-          const newRequest: AccessRequest = {
-            id: responseData.id,
-            requester: responseData.requester || 'Current User',
-            resource: requestData.resource,
-            reason: requestData.reason,
-            requestedDuration: requestData.duration,
-            status: 'pending',
-            requestTime: new Date().toISOString(),
-            riskLevel: responseData.riskLevel || 'medium'
-          };
+          const transformedRequest = transformBackendData(responseData);
           
           // Add the new request to the beginning of the list
-          setRequests(prevRequests => [newRequest, ...prevRequests]);
-          console.log('Added new request to local state:', newRequest);
+          setRequests(prevRequests => [transformedRequest, ...prevRequests]);
+          console.log('Added new request to local state:', transformedRequest);
         }
         
         // Also refresh the list to get latest data from backend
@@ -435,7 +529,7 @@ export const JITAccess: React.FC = () => {
 };
 
 interface NewRequestFormProps {
-  onSubmit: (data: { resource: string; reason: string; duration: string }) => void;
+  onSubmit: (data: { resource: string; system?: string; reason: string; duration: string }) => void;
   onCancel: () => void;
   loading: boolean;
 }
@@ -443,6 +537,7 @@ interface NewRequestFormProps {
 const NewRequestForm: React.FC<NewRequestFormProps> = ({ onSubmit, onCancel, loading }) => {
   const [formData, setFormData] = useState({
     resource: '',
+    system: '',
     reason: '',
     duration: '1 hour'
   });
@@ -472,8 +567,21 @@ const NewRequestForm: React.FC<NewRequestFormProps> = ({ onSubmit, onCancel, loa
           type="text"
           value={formData.resource}
           onChange={(e) => setFormData(prev => ({ ...prev, resource: e.target.value }))}
-          placeholder="e.g., Production Database, AWS Console"
+          placeholder="e.g., Database Server, AWS Console"
           required
+        />
+      </div>
+
+      <div>
+        <label htmlFor="system" className="block text-sm font-medium text-gray-700 mb-1">
+          System Details (Optional)
+        </label>
+        <Input
+          id="system"
+          type="text"
+          value={formData.system}
+          onChange={(e) => setFormData(prev => ({ ...prev, system: e.target.value }))}
+          placeholder="e.g., Production MySQL, EC2 Instance"
         />
       </div>
 
