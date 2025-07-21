@@ -39,5 +39,9 @@
   },
   "audit": {
     "list": "GET /api/v1/audit"
+  },
+  "dashboard": {
+    "stats": "GET /api/v1/dashboard/stats",
+    "alerts": "GET /api/v1/dashboard/alerts"
   }
 } 

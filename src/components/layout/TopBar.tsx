@@ -1,12 +1,34 @@
 import React from 'react';
 import { Menu, Bell, User, LogOut, Search, Settings, HelpCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { useAuthStore } from '../../store/authStore';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 interface TopBarProps {
   onMenuClick: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
+  const { user, signOut } = useAuthStore();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.success('Signed out successfully');
+      navigate('/login');
+    } catch (error: any) {
+      console.error('Sign out error:', error);
+      toast.error('Failed to sign out');
+    }
+  };
+
+  // Format user display name and role
+  const displayName = user?.name || user?.email || 'User';
+  const displayRole = user?.role ? 
+    user.role.charAt(0).toUpperCase() + user.role.slice(1) : 
+    'User';
 
   return (
     <header className="bg-white/80 backdrop-blur-xl border-b border-slate-200/50 h-20 flex items-center justify-between px-6 shadow-sm">
@@ -47,13 +69,18 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
         <div className="flex items-center space-x-3 ml-4 pl-4 border-l border-slate-200">
           <div className="hidden md:block text-right">
-            <p className="text-sm font-semibold text-slate-900">admin@cybervault.com</p>
-            <p className="text-xs text-slate-500 font-medium">System Administrator</p>
+            <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+            <p className="text-xs text-slate-500 font-medium">{displayRole}</p>
           </div>
           <div className="h-10 w-10 bg-gradient-to-br from-blue-500 via-cyan-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25 ring-2 ring-white">
             <User className="h-5 w-5 text-white" />
           </div>
-          <Button variant="ghost" size="sm" className="hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleSignOut}
+            className="hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200"
+          >
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
