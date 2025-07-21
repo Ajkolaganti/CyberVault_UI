@@ -35,53 +35,48 @@ export const JITAccess: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // API Functions
   const fetchRequests = async () => {
     setLoading(true);
+    setRefreshing(true);
     setError(null);
     try {
       const res = await fetch('/api/v1/jit', {
         headers: getAuthHeaders(),
       });
+      
+      console.log('JIT fetch response status:', res.status, res.statusText);
+      
       if (res.ok) {
         const data = await res.json();
-        setRequests(data.requests || data || []);
+        console.log('JIT fetch data received:', data);
+        
+        // Handle different possible response structures
+        const requestsList = data.requests || data.items || data || [];
+        setRequests(Array.isArray(requestsList) ? requestsList : []);
+        console.log('Requests set to:', requestsList);
       } else {
-        console.log('JIT endpoint not available, using mock data');
-        // Mock data for development when backend endpoint is not available
-        const mockRequests: AccessRequest[] = [
-          {
-            id: 'jit_1',
-            requester: 'john.doe@company.com',
-            resource: 'Production Database',
-            reason: 'Emergency database maintenance',
-            requestedDuration: '2 hours',
-            status: 'pending',
-            requestTime: new Date(Date.now() - 3600000).toISOString(),
-            riskLevel: 'high'
-          },
-          {
-            id: 'jit_2',
-            requester: 'jane.smith@company.com',
-            resource: 'AWS Console Access',
-            reason: 'Deploy critical security patch',
-            requestedDuration: '30 minutes',
-            status: 'active',
-            requestTime: new Date(Date.now() - 7200000).toISOString(),
-            approver: 'admin@company.com',
-            expiresAt: '25 minutes',
-            riskLevel: 'medium'
-          }
-        ];
-        setRequests(mockRequests);
+        // If backend returns an error, still try to get existing requests
+        console.log('JIT endpoint returned error status:', res.status);
+        if (res.status === 404) {
+          console.log('JIT endpoint not found, using empty array');
+          setRequests([]);
+        } else {
+          // For other errors, try to parse error message
+          const errorData = await res.text();
+          console.log('Error response:', errorData);
+          setRequests([]);
+        }
       }
     } catch (err: any) {
-      console.log('JIT endpoint error, using mock data:', err);
-      setError(null); // Don't show error for missing endpoint
-      setRequests([]); // Show empty state instead
+      console.log('JIT endpoint error:', err);
+      // If there's a network error or endpoint doesn't exist, start with empty array
+      setRequests([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -92,6 +87,8 @@ export const JITAccess: React.FC = () => {
   }) => {
     try {
       setActionLoading('create');
+      console.log('Creating JIT request with data:', requestData);
+      
       const res = await fetch('/api/v1/jit', {
         method: 'POST',
         headers: {
@@ -105,14 +102,42 @@ export const JITAccess: React.FC = () => {
         }),
       });
 
+      console.log('Create request response status:', res.status, res.statusText);
+
       if (res.ok) {
-        await fetchRequests(); // Refresh the list
+        const responseData = await res.json();
+        console.log('Create request response data:', responseData);
+        
         setShowNewRequestModal(false);
+        
+        // If the response includes the created request, add it to local state
+        if (responseData && responseData.id) {
+          const newRequest: AccessRequest = {
+            id: responseData.id,
+            requester: responseData.requester || 'Current User',
+            resource: requestData.resource,
+            reason: requestData.reason,
+            requestedDuration: requestData.duration,
+            status: 'pending',
+            requestTime: new Date().toISOString(),
+            riskLevel: responseData.riskLevel || 'medium'
+          };
+          
+          // Add the new request to the beginning of the list
+          setRequests(prevRequests => [newRequest, ...prevRequests]);
+          console.log('Added new request to local state:', newRequest);
+        }
+        
+        // Also refresh the list to get latest data from backend
+        await fetchRequests();
+        console.log('Refreshed requests list after creation');
       } else {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to create request');
+        const errorData = await res.text();
+        console.log('Create request error response:', errorData);
+        throw new Error(`Failed to create request (${res.status}): ${errorData}`);
       }
     } catch (err: any) {
+      console.error('Create request error:', err);
       setError(err.message || 'Failed to create request');
     } finally {
       setActionLoading(null);
@@ -226,6 +251,7 @@ export const JITAccess: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Just-in-Time Access</h1>
           <p className="mt-1 text-sm text-gray-500">
             Request and manage temporary privileged access
+            {refreshing && <span className="text-blue-500"> • Refreshing...</span>}
           </p>
         </div>
         <Button
