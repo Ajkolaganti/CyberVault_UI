@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'https://cybervault-api-v61l.onrender.com',
+      '/api': 'https://cybervault-api-a1fo.onrender.com',
     },
   },
   optimizeDeps: {

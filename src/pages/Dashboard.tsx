@@ -9,6 +9,12 @@ import {
 } from 'lucide-react';
 import { getAuthHeaders } from '../store/authStore';
 
+// Base URL for all API requests; fallback to localhost if env variable not set
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (process.env.REACT_APP_API_BASE_URL as string) ||
+  'https://cybervault-api-a1fo.onrender.com';
+
 interface Activity {
   id: string;
   user: string;
@@ -30,14 +36,15 @@ export const Dashboard: React.FC = () => {
   const [criticalAlerts, setCriticalAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+console.log('[Dashboard] API_BASE_URL =', API_BASE_URL);
   useEffect(() => {
     const fetchDashboard = async () => {
       setLoading(true);
       setError(null);
+      console.log('[Dashboard] Auth headers being sent:', getAuthHeaders());
       try {
         // Fetch stats from new endpoint
-        const statsRes = await fetch('/api/v1/dashboard/stats', {
+        const statsRes = await fetch(`${API_BASE_URL}/api/v1/dashboard/stats`, {
           headers: getAuthHeaders(),
         });
         if (!statsRes.ok) throw new Error('Failed to fetch dashboard stats');
@@ -82,7 +89,7 @@ export const Dashboard: React.FC = () => {
         setStats(transformedStats);
 
         // Fetch alerts from new endpoint
-        const alertsRes = await fetch('/api/v1/dashboard/alerts', {
+        const alertsRes = await fetch(`${API_BASE_URL}/api/v1/dashboard/alerts`, {
           headers: getAuthHeaders(),
         });
         if (!alertsRes.ok) throw new Error('Failed to fetch alerts');
@@ -90,14 +97,43 @@ export const Dashboard: React.FC = () => {
         console.log('Dashboard alerts received:', alertsData);
         setCriticalAlerts(alertsData.alerts || alertsData.items || alertsData || []);
 
+        /*  -------- Audit endpoint temporarily disabled --------
         // Fetch recent activity (audit logs)
-        const activityRes = await fetch('/api/v1/audit', {
+        const activityUrl = `${API_BASE_URL}/api/v1/audit`;
+        const activityRes = await fetch(activityUrl, {
           headers: getAuthHeaders(),
         });
-        if (!activityRes.ok) throw new Error('Failed to fetch activity');
-        const activityData = await activityRes.json();
-        console.log('Dashboard activity received:', activityData);
-        setRecentActivity(activityData.logs || activityData.items || activityData || []);
+        console.log('[Dashboard] Activity response status:', activityRes.status, activityRes.statusText, 'for', activityUrl);
+
+        // Read raw text so we can safely debug malformed JSON without throwing
+        const activityRaw = await activityRes.text();
+        console.log('[Dashboard] Activity raw response:', activityRaw);
+
+        if (!activityRes.ok) {
+          // Surface backend status code in the error so we can see 404 vs 500, etc.
+          throw new Error(`Failed to fetch activity (status ${activityRes.status})`);
+        }
+
+        let activityData: any = [];
+        if (activityRaw) {
+          try {
+            activityData = JSON.parse(activityRaw);
+          } catch (parseErr) {
+            console.error('[Dashboard] Failed to parse activity JSON:', parseErr);
+            // leave as empty array so the dashboard still renders
+            activityData = [];
+          }
+        }
+
+        console.log('Dashboard activity received parsed:', activityData);
+
+        // Normalize shape: accept {logs:[]}, {items:[]}, or array root
+        const activityList =
+          (activityData && (activityData.logs || activityData.items)) ||
+          (Array.isArray(activityData) ? activityData : []);
+
+        setRecentActivity(activityList);
+      -------- Audit endpoint temporarily disabled -------- */
 
       } catch (err: any) {
         console.error('Dashboard error:', err);
@@ -180,7 +216,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Recent Activity */}
+        {/* -------- Recent Activity section disabled (audit endpoint missing) --------
         <Card hover={true}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-slate-900">Recent Activity</h3>
@@ -209,6 +245,7 @@ export const Dashboard: React.FC = () => {
             ))}
           </div>
         </Card>
+        -------- Recent Activity section disabled -------- */}
 
         {/* Critical Alerts */}
         <Card hover={true}>
