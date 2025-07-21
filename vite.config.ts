@@ -11,6 +11,7 @@ export default defineConfig({
         target: 'https://cybervault-api-a1fo.onrender.com',
         changeOrigin: true,
         secure: true,
+        rewrite: (path) => path, // Keep the /api prefix
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('Proxy error:', err);
@@ -24,6 +25,18 @@ export default defineConfig({
         },
       },
     },
+  },
+  build: {
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          ui: ['lucide-react']
+        }
+      }
+    }
   },
   optimizeDeps: {
     exclude: ['lucide-react'],

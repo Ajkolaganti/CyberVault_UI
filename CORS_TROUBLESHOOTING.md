@@ -4,9 +4,22 @@
 
 When Postman works but your frontend doesn't, it's typically a CORS configuration issue. Postman doesn't enforce CORS policies, but browsers do.
 
-## Solution: Fix Your Backend CORS Configuration
+## Solution 1: Vercel Rewrites (Recommended for Vercel Deployment)
 
-In your **separate backend project**, update your CORS configuration:
+Since you're deploying to Vercel, we've configured `vercel.json` to handle API proxying and CORS headers automatically. This approach bypasses CORS issues by making requests appear to come from the same origin.
+
+### How it works:
+- Requests to `/api/*` on your Vercel domain are automatically forwarded to your backend
+- Vercel adds the necessary CORS headers
+- No browser CORS restrictions since requests appear to be same-origin
+
+### Configuration added:
+- `vercel.json` with rewrites and headers
+- Updated Vite config for better build optimization
+
+## Solution 2: Fix Your Backend CORS Configuration
+
+If you still prefer to handle CORS on the backend side, update your **separate backend project**:
 
 ### 1. Install CORS package (if not already installed)
 ```bash
@@ -18,12 +31,13 @@ npm install cors
 ```javascript
 const cors = require('cors');
 
-// Allow multiple origins including your frontend
+// Allow multiple origins including your frontend and Vercel
 const allowedOrigins = [
   'http://localhost:5173',      // Vite dev server
   'http://localhost:3000',      // Alternative React dev server
   'http://127.0.0.1:5173',     // Alternative localhost
-  'https://your-deployed-frontend.com', // Your production frontend URL
+  'https://your-vercel-app.vercel.app', // Your Vercel deployment URL
+  'https://your-custom-domain.com', // Your custom domain if any
   // Add more origins as needed
 ];
 
@@ -136,4 +150,26 @@ const allowedOrigins = [
 3. Share your backend server startup logs
 4. Confirm your backend is running on the expected port/URL
 
-The Vite proxy is now correctly configured to forward requests to your Render deployment at `https://cybervault-api-a1fo.onrender.com`.
+The Vite proxy is configured for local development, and Vercel rewrites handle production deployment to forward requests to your Render backend at `https://cybervault-api-a1fo.onrender.com`.
+
+## Vercel Deployment Benefits
+
+1. **No CORS issues**: Requests appear to come from the same origin
+2. **Automatic SSL**: Vercel handles HTTPS for your frontend
+3. **Edge caching**: Better performance for API responses
+4. **Simplified configuration**: No need to manage CORS headers manually
+
+## Testing with Vercel
+
+1. **Deploy to Vercel**: `vercel --prod` or connect your GitHub repo
+2. **Test API calls**: Your frontend will automatically proxy API requests
+3. **Check Vercel logs**: Monitor function logs in Vercel dashboard for any issues
+
+## Troubleshooting Vercel Deployment
+
+If you still have issues after deploying to Vercel:
+
+1. **Check Vercel function logs** in the dashboard
+2. **Verify your backend is accessible** from Vercel's servers
+3. **Ensure your backend accepts requests** from your Vercel domain
+4. **Test the rewrite rules** by checking network tab in browser dev tools
