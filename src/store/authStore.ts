@@ -42,6 +42,7 @@ export const getAuthHeaders = () => {
   const token = localStorage.getItem('cybervault_token');
   return {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` })
   };
 };
@@ -57,21 +58,43 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true });
         try {
           console.log('Attempting login with email:', email);
+          const loginEndpoint = '/api/v1/auth/login';
+          console.log('[AuthStore] Attempting login at endpoint:', loginEndpoint);
           
           const response = await fetch('/api/v1/auth/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
             },
             body: JSON.stringify({ email, password }),
+            credentials: 'include', // Important for CORS with credentials
           });
           
           console.log('Login response status:', response.status);
+          console.log('Login response headers:', Object.fromEntries(response.headers.entries()));
           
           if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Authentication failed' }));
-            console.error('Login error:', errorData);
-            throw new Error(errorData.message || 'Invalid credentials');
+            let errorMessage = 'Authentication failed';
+            const contentType = response.headers.get('content-type');
+            
+            if (contentType && contentType.includes('application/json')) {
+              const errorData = await response.json().catch(() => ({ message: 'Authentication failed' }));
+              console.error('Login error:', errorData);
+              errorMessage = errorData.message || 'Invalid credentials';
+            } else {
+              const textError = await response.text().catch(() => 'Authentication failed');
+              console.error('Non-JSON login error:', textError);
+              
+              // Handle CORS errors specifically
+              if (response.status === 0 || !response.status) {
+                errorMessage = 'Network error: Please check if the backend server is running and CORS is properly configured.';
+              } else {
+                errorMessage = `Server error: ${response.status}`;
+              }
+            }
+            
+            throw new Error(errorMessage);
           }
           
           const data = await response.json();
@@ -120,8 +143,10 @@ export const useAuthStore = create<AuthState>()(
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
             },
             body: JSON.stringify({ email, password, role }),
+            credentials: 'include', // Important for CORS with credentials
           });
           
           console.log('Registration response status:', response.status);
@@ -147,7 +172,13 @@ export const useAuthStore = create<AuthState>()(
             } else {
               const textError = await response.text();
               console.error('Non-JSON registration error:', textError);
-              errorMessage = `Server error: ${response.status}`;
+              
+              // Handle CORS errors specifically
+              if (response.status === 0 || !response.status) {
+                errorMessage = 'Network error: Please check if the backend server is running and CORS is properly configured.';
+              } else {
+                errorMessage = `Server error: ${response.status}`;
+              }
             }
             
             throw new Error(errorMessage);
