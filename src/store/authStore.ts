@@ -47,6 +47,21 @@ export const getAuthHeaders = () => {
   };
 };
 
+// Helper function to get current user ID
+export const getCurrentUserId = (): string | null => {
+  const authData = localStorage.getItem('cybervault-auth');
+  if (authData) {
+    try {
+      const parsed = JSON.parse(authData);
+      return parsed.state?.user?.id || null;
+    } catch (error) {
+      console.error('Error parsing auth data:', error);
+      return null;
+    }
+  }
+  return null;
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({

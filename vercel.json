@@ -1,6 +1,22 @@
 {
   "rewrites": [
     {
+      "source": "/api/v1/accounts",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/accounts"
+    },
+    {
+      "source": "/api/v1/accounts/:id",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/accounts/:id"
+    },
+    {
+      "source": "/api/v1/accounts/:id/rotate",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/accounts/:id/rotate"
+    },
+    {
+      "source": "/api/v1/accounts/statistics",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/accounts/statistics"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "https://cybervault-api-a1fo.onrender.com/api/$1"
     }
@@ -19,11 +35,24 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Supabase-Token"
+          "value": "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Supabase-Token, Cache-Control"
         },
         {
           "key": "Access-Control-Allow-Credentials",
           "value": "true"
+        },
+        {
+          "key": "Access-Control-Max-Age",
+          "value": "86400"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
         }
       ]
     }

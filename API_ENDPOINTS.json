@@ -37,6 +37,13 @@
     "update": "PUT /api/v1/policies/:id",
     "delete": "DELETE /api/v1/policies/:id"
   },
+  "accounts": {
+    "create": "POST /api/v1/accounts",
+    "list": "GET /api/v1/accounts",
+    "get": "GET /api/v1/accounts/:id",
+    "update": "PUT /api/v1/accounts/:id",
+    "delete": "DELETE /api/v1/accounts/:id"
+  },
   "audit": {
     "list": "GET /api/v1/audit"
   },

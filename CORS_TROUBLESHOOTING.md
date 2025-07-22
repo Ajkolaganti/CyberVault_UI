@@ -4,9 +4,65 @@
 
 When Postman works but your frontend doesn't, it's typically a CORS configuration issue. Postman doesn't enforce CORS policies, but browsers do.
 
-## Solution 1: Vercel Rewrites (Recommended for Vercel Deployment)
+## ✅ Solution Implemented: Vercel Rewrites with Enhanced CORS Support
 
-Since you're deploying to Vercel, we've configured `vercel.json` to handle API proxying and CORS headers automatically. This approach bypasses CORS issues by making requests appear to come from the same origin.
+We've configured `vercel.json` to handle API proxying and CORS headers automatically for **ALL** endpoints including the new `/api/v1/accounts` endpoint. This approach bypasses CORS issues by making requests appear to come from the same origin.
+
+### 🔧 Current Configuration:
+
+```json
+{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods", 
+          "value": "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Supabase-Token, Cache-Control"
+        },
+        {
+          "key": "Access-Control-Allow-Credentials",
+          "value": "true"
+        },
+        {
+          "key": "Access-Control-Max-Age",
+          "value": "86400"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### 🎯 Supported Endpoints:
+- ✅ `/api/v1/auth/*` (login, register)
+- ✅ `/api/v1/credentials/*` (CRUD operations)
+- ✅ `/api/v1/accounts/*` (NEW - account management)
+- ✅ `/api/v1/jit/*` (just-in-time access)
+- ✅ `/api/v1/sessions/*` (session monitoring)
+- ✅ `/api/v1/dashboard/*` (dashboard stats)
+- ✅ All other API endpoints
+
+### 🚀 Enhanced Features:
+1. **Automatic CORS handling** for all API routes
+2. **Credentials support** for authentication
+3. **Extended cache control** for better performance
+4. **Comprehensive error handling** in the frontend
+5. **API connectivity testing** before making requests
 
 ### How it works:
 - Requests to `/api/*` on your Vercel domain are automatically forwarded to your backend
@@ -165,11 +221,88 @@ The Vite proxy is configured for local development, and Vercel rewrites handle p
 2. **Test API calls**: Your frontend will automatically proxy API requests
 3. **Check Vercel logs**: Monitor function logs in Vercel dashboard for any issues
 
-## Troubleshooting Vercel Deployment
+## 🐛 Debugging CORS Issues
 
-If you still have issues after deploying to Vercel:
+### For Account Creation (`/api/v1/accounts`):
 
-1. **Check Vercel function logs** in the dashboard
-2. **Verify your backend is accessible** from Vercel's servers
-3. **Ensure your backend accepts requests** from your Vercel domain
-4. **Test the rewrite rules** by checking network tab in browser dev tools
+1. **Open Browser Developer Tools** (F12)
+2. **Go to Network Tab**
+3. **Try creating an account**
+4. **Look for the request** to `/api/v1/accounts`
+
+#### ✅ What you should see (Working):
+```
+Request URL: https://your-app.vercel.app/api/v1/accounts
+Request Method: POST
+Status Code: 200 OK (or 201 Created)
+Response Headers:
+  access-control-allow-origin: *
+  access-control-allow-credentials: true
+```
+
+#### ❌ What indicates a problem:
+```
+Status Code: (failed) net::ERR_FAILED
+Console Error: "Access to fetch has been blocked by CORS policy"
+```
+
+### 🔧 Troubleshooting Steps:
+
+1. **Check if the request is being proxied correctly:**
+   ```bash
+   # Test the Vercel deployment directly
+   curl -X POST https://your-app.vercel.app/api/v1/accounts \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -d '{"test": "data"}'
+   ```
+
+2. **Verify backend is accessible:**
+   ```bash
+   # Test the backend directly  
+   curl -X POST https://cybervault-api-a1fo.onrender.com/api/v1/accounts \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -d '{"test": "data"}'
+   ```
+
+3. **Check Vercel function logs:**
+   - Go to Vercel Dashboard
+   - Click on your project
+   - Go to "Functions" tab
+   - Look for any error logs
+
+### 🆘 Emergency Fixes:
+
+If CORS is still failing, try these immediate solutions:
+
+1. **Clear browser cache and cookies**
+2. **Try in incognito/private mode**
+3. **Redeploy to Vercel:**
+   ```bash
+   ./deploy-with-cors.sh
+   ```
+
+### 🔗 Quick Deploy Command:
+```bash
+# Use the enhanced deployment script
+./deploy-with-cors.sh
+```
+
+This script will:
+- ✅ Build the project
+- ✅ Verify configuration
+- ✅ Deploy to Vercel
+- ✅ Provide debugging information
+
+### 📞 Still Having Issues?
+
+1. Check that your backend at `https://cybervault-api-a1fo.onrender.com` is running
+2. Verify the `/api/v1/accounts` endpoint exists on your backend
+3. Make sure your backend accepts the request headers we're sending
+4. Check if your backend has its own CORS configuration that might conflict
+
+The Vercel proxy should handle all CORS issues automatically, so if you're still seeing CORS errors, the problem is likely:
+- Backend is down or unreachable
+- Backend endpoint doesn't exist
+- Backend is rejecting the request for other reasons (auth, validation, etc.)

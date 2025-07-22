@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, Key, AlignCenterVertical as Certificate, Search, Clock, Monitor, Users, Puzzle, FileText, Settings, X } from 'lucide-react';
+import { Shield, Key, AlignCenterVertical as Certificate, Search, Clock, Monitor, Users, Puzzle, FileText, Settings, X, Vault } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -11,6 +11,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: Shield },
   { name: 'Credential Vault', href: '/vault', icon: Key },
   { name: 'Accounts', href: '/accounts', icon: Users },
+  { name: 'Safes', href: '/safes', icon: Vault },
   { name: 'JIT Access', href: '/jit-access', icon: Clock },
   { name: 'Session Monitoring', href: '/sessions', icon: Monitor },
   { name: 'Discovery', href: '/discovery', icon: Search },

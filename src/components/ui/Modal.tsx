@@ -8,10 +8,19 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   glow?: boolean;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, glow = true }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, glow = true, size = 'md' }) => {
   if (!isOpen) return null;
+
+  const sizeClasses = {
+    sm: 'max-w-md',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl',
+    '2xl': 'max-w-6xl'
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -23,7 +32,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
         />
 
         {/* Modal */}
-        <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full p-6 transform transition-all">
+        <div className={`relative bg-white rounded-2xl shadow-xl ${sizeClasses[size]} w-full p-6 transform transition-all`}>
           {glow && (
             <GlowingEffect
               spread={35}

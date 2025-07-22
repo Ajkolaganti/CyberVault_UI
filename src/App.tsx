@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './components/auth/AuthProvider';
@@ -9,6 +8,7 @@ import { DashboardLayout } from './components/layout/DashboardLayout';
 import { Dashboard } from './pages/Dashboard';
 import { CredentialVault } from './pages/CredentialVault';
 import { Accounts } from './pages/Accounts';
+import { Safes } from './pages/Safes';
 import { SessionMonitoring } from './pages/SessionMonitoring';
 import { JITAccess } from './pages/JITAccess';
 import { SignupPage } from './pages/SignupPage';
@@ -53,7 +53,7 @@ function App() {
               </ProtectedRoute>
             } />
             
-            <Route path="/credentials" element={
+            <Route path="/vault" element={
               <ProtectedRoute>
                 <DashboardLayout>
                   <CredentialVault />
@@ -65,6 +65,14 @@ function App() {
               <ProtectedRoute>
                 <DashboardLayout>
                   <Accounts />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/safes" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <Safes />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

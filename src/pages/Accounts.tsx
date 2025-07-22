@@ -4,7 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { AnimatedTabs } from '../components/ui/AnimatedTabs';
-import { CreateAccountModal } from '../components/accounts/CreateAccountModal';
+import CreateAccountModal from '../components/accounts/CreateAccountModal';
 import { getAuthHeaders } from '../store/authStore';
 import {
   Users,
@@ -22,7 +22,6 @@ import {
   Server,
   Monitor,
   Wifi,
-  HardDrive,
   RefreshCw
 } from 'lucide-react';
 
@@ -30,12 +29,20 @@ interface Account {
   id: string;
   user_id: string;
   name: string;
-  system_type: 'Windows' | 'Database' | 'Cloud Service' | '*NIX' | 'Security Appliance' | 'Network Device' | 'Application' | 'Website' | 'Operating System';
-  username: string;
-  address: string;
+  system_type: 'Windows' | 'Linux' | 'Oracle DB' | 'SQL Server' | 'MySQL' | 'AWS' | 'Azure' | 'Unix/AIX' | 'Network Device' | 'Security Appliance' | 'Application' | 'Website';
+  hostname: string;
   port?: number;
-  description?: string;
+  connection_method: 'RDP' | 'SSH' | 'SQL' | 'HTTPS' | 'HTTP' | 'Oracle' | 'MySQL' | 'PostgreSQL' | 'MongoDB' | 'Custom';
+  platform_id: string;
+  account_type: 'Local' | 'Domain' | 'Service' | 'Admin' | 'Database' | 'Application';
+  safe_name: string;
+  username: string;
+  rotation_policy: string;
   rotation_status: 'no_policy' | 'current' | 'due_soon' | 'overdue';
+  description?: string;
+  tags?: string;
+  owner_email?: string;
+  business_justification?: string;
   last_rotated?: string;
   next_rotation?: string;
   created_at: string;
@@ -53,23 +60,29 @@ interface AccountStatistics {
 const getSystemTypeIcon = (type: Account['system_type']) => {
   switch (type) {
     case 'Windows':
-      return <Shield className="w-4 h-4" />;
-    case 'Database':
-      return <Database className="w-4 h-4" />;
-    case 'Cloud Service':
-      return <Globe className="w-4 h-4" />;
-    case '*NIX':
-      return <Server className="w-4 h-4" />;
-    case 'Security Appliance':
-      return <Shield className="w-4 h-4 text-orange-500" />;
+      return <Shield className="w-4 h-4 text-blue-500" />;
+    case 'Linux':
+      return <Monitor className="w-4 h-4 text-orange-500" />;
+    case 'Oracle DB':
+      return <Database className="w-4 h-4 text-red-500" />;
+    case 'SQL Server':
+      return <Database className="w-4 h-4 text-blue-600" />;
+    case 'MySQL':
+      return <Database className="w-4 h-4 text-orange-600" />;
+    case 'AWS':
+      return <Globe className="w-4 h-4 text-yellow-500" />;
+    case 'Azure':
+      return <Globe className="w-4 h-4 text-blue-400" />;
+    case 'Unix/AIX':
+      return <Server className="w-4 h-4 text-gray-600" />;
     case 'Network Device':
-      return <Wifi className="w-4 h-4" />;
+      return <Wifi className="w-4 h-4 text-green-500" />;
+    case 'Security Appliance':
+      return <Shield className="w-4 h-4 text-purple-500" />;
     case 'Application':
-      return <Monitor className="w-4 h-4" />;
+      return <Monitor className="w-4 h-4 text-teal-500" />;
     case 'Website':
-      return <Globe className="w-4 h-4 text-blue-500" />;
-    case 'Operating System':
-      return <HardDrive className="w-4 h-4" />;
+      return <Globe className="w-4 h-4 text-indigo-500" />;
     default:
       return <Key className="w-4 h-4" />;
   }
@@ -237,7 +250,7 @@ export const Accounts: React.FC = () => {
   const filteredAccounts = accounts.filter(account =>
     account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     account.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    account.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    account.hostname.toLowerCase().includes(searchTerm.toLowerCase()) ||
     account.system_type.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -425,22 +438,41 @@ export const Accounts: React.FC = () => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
                     <div>
                       <p className="text-xs text-gray-500">Username</p>
                       <p className="text-sm font-medium text-gray-900">{account.username}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">Address</p>
+                      <p className="text-xs text-gray-500">Hostname</p>
                       <p className="text-sm font-medium text-gray-900">
-                        {account.address}{account.port && `:${account.port}`}
+                        {account.hostname}{account.port && `:${account.port}`}
                       </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Platform Policy</p>
+                      <p className="text-sm font-medium text-gray-900">{account.platform_id}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Safe</p>
+                      <p className="text-sm font-medium text-gray-900">{account.safe_name}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Rotation Status</p>
                       <div className="mt-1">
                         {getRotationStatusBadge(account.rotation_status)}
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+                    <div>
+                      <p className="text-xs text-gray-500">Account Type</p>
+                      <p className="text-sm font-medium text-gray-900">{account.account_type}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Connection Method</p>
+                      <p className="text-sm font-medium text-gray-900">{account.connection_method}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Last Rotated</p>
