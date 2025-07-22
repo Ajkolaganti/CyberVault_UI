@@ -216,7 +216,7 @@ export const CredentialVault: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <Card hover={true}>
+      <Card hover={true} glowIntensity="subtle">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
@@ -246,7 +246,7 @@ export const CredentialVault: React.FC = () => {
 
       {/* Credentials Grid */}
       {loading ? (
-        <Card className="text-center py-16">
+        <Card className="text-center py-16" glowIntensity="normal">
           <LoadingSpinner 
             variant="lock" 
             size="lg" 
@@ -255,7 +255,7 @@ export const CredentialVault: React.FC = () => {
           />
         </Card>
       ) : error ? (
-        <Card className="text-center py-16">
+        <Card className="text-center py-16" glowIntensity="strong">
           <div className="p-4 bg-red-100 rounded-3xl w-fit mx-auto mb-6">
             <Key className="h-12 w-12 text-red-400" />
           </div>
@@ -263,10 +263,13 @@ export const CredentialVault: React.FC = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-          {filteredCredentials.map((credential) => {
+          {filteredCredentials.map((credential, index) => {
             const IconComponent = getTypeIcon(credential.type);
+            // Alternate between different glow intensities for visual variety
+            const glowIntensity = index % 3 === 0 ? 'subtle' : index % 3 === 1 ? 'normal' : 'strong';
+            
             return (
-              <Card key={credential.id} hover={true} className="group">
+              <Card key={credential.id} hover={true} className="group" glowIntensity={glowIntensity}>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="p-3 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-2xl group-hover:scale-110 transition-transform duration-200">
@@ -354,7 +357,7 @@ export const CredentialVault: React.FC = () => {
       )}
 
       {!loading && !error && filteredCredentials.length === 0 && (
-        <Card className="text-center py-16">
+        <Card className="text-center py-16" glowIntensity="normal">
           <div className="p-4 bg-slate-100 rounded-3xl w-fit mx-auto mb-6">
             <Key className="h-12 w-12 text-slate-400" />
           </div>

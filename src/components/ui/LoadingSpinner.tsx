@@ -1,10 +1,11 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
+import { LockAnimation } from './LockAnimation';
 
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
-  variant?: 'spinner' | 'lock';
+  variant?: 'spinner' | 'lock' | 'dotlock';
   text?: string;
 }
 
@@ -149,6 +150,17 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
     md: 'text-base',
     lg: 'text-lg'
   };
+
+  if (variant === 'dotlock') {
+    return (
+      <LockAnimation 
+        variant="lock" 
+        size={size} 
+        className={className}
+        text={text}
+      />
+    );
+  }
 
   if (variant === 'lock') {
     return (

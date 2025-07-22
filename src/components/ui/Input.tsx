@@ -1,10 +1,12 @@
 import React from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { GlowingEffect } from './GlowingEffect';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   secure?: boolean;
+  glow?: boolean;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -13,10 +15,10 @@ export const Input: React.FC<InputProps> = ({
   secure = false,
   className = '',
   type = 'text',
+  glow = true,
   ...props
 }) => {
   const [showPassword, setShowPassword] = React.useState(false);
-  const [isFocused, setIsFocused] = React.useState(false);
 
   const inputType = secure ? (showPassword ? 'text' : 'password') : type;
 
@@ -28,19 +30,29 @@ export const Input: React.FC<InputProps> = ({
         </label>
       )}
       <div className="relative">
-        <input
-          type={inputType}
-          className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-            error ? 'border-red-500 focus:ring-red-500' : ''
-          } ${className}`}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          {...props}
-        />
+        <div className="relative">
+          {glow && (
+            <GlowingEffect
+              spread={20}
+              proximity={25}
+              inactiveZone={0.8}
+              borderWidth={1}
+              glow={true}
+              disabled={false}
+            />
+          )}
+          <input
+            type={inputType}
+            className={`relative w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 backdrop-blur-sm ${
+              error ? 'border-red-500 focus:ring-red-500' : ''
+            } ${className}`}
+            {...props}
+          />
+        </div>
         {secure && (
           <button
             type="button"
-            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center z-10"
             onClick={() => setShowPassword(!showPassword)}
           >
             {showPassword ? (

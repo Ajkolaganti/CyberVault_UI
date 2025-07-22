@@ -1,6 +1,7 @@
 import React from 'react';
 import { Menu, Bell, User, LogOut, Search, Settings, HelpCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { ExpandableTabs } from '../ui/ExpandableTabs';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -30,6 +31,39 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     user.role.charAt(0).toUpperCase() + user.role.slice(1) : 
     'User';
 
+  // Define tabs for the expandable menu with special handling for notifications
+  const userMenuTabs = [
+    { title: "Profile", icon: User },
+    { title: "Notifications", icon: Bell },
+    { type: "separator" as const },
+    { title: "Settings", icon: Settings },
+    { title: "Help", icon: HelpCircle },
+    { title: "Sign Out", icon: LogOut },
+  ];
+
+  const handleTabChange = (index: number | null) => {
+    if (index === null) return;
+    
+    // Handle different tab actions
+    switch (index) {
+      case 0: // Profile
+        toast('Profile coming soon!', { icon: '👤' });
+        break;
+      case 1: // Notifications
+        toast('Notifications coming soon!', { icon: '🔔' });
+        break;
+      case 3: // Settings
+        toast('Settings coming soon!', { icon: '⚙️' });
+        break;
+      case 4: // Help
+        toast('Help center coming soon!', { icon: '❓' });
+        break;
+      case 5: // Sign Out
+        handleSignOut();
+        break;
+    }
+  };
+
   return (
     <header className="bg-white/80 backdrop-blur-xl border-b border-slate-200/50 h-20 flex items-center justify-between px-6 shadow-sm">
       <div className="flex items-center space-x-4">
@@ -52,38 +86,25 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         </div>
       </div>
 
-      <div className="flex items-center space-x-2">
-        <button className="relative p-3 text-slate-400 hover:text-slate-600 transition-all duration-200 rounded-xl hover:bg-slate-100 group">
-          <HelpCircle className="h-5 w-5 group-hover:scale-110 transition-transform" />
-        </button>
-        
-        <button className="relative p-3 text-slate-400 hover:text-slate-600 transition-all duration-200 rounded-xl hover:bg-slate-100 group">
-          <Settings className="h-5 w-5 group-hover:rotate-90 transition-transform duration-300" />
-        </button>
-        
-        <button className="relative p-3 text-slate-400 hover:text-slate-600 transition-all duration-200 rounded-xl hover:bg-slate-100 group">
-          <Bell className="h-5 w-5 group-hover:scale-110 transition-transform" />
-          <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-pulse shadow-lg shadow-red-500/50"></span>
-          <span className="absolute top-1 right-1 h-4 w-4 bg-red-500 rounded-full animate-ping opacity-20"></span>
-        </button>
-
-        <div className="flex items-center space-x-3 ml-4 pl-4 border-l border-slate-200">
-          <div className="hidden md:block text-right">
+      <div className="flex items-center space-x-4">
+        {/* User info section */}
+        <div className="hidden md:flex items-center space-x-3">
+          <div className="text-right">
             <p className="text-sm font-semibold text-slate-900">{displayName}</p>
             <p className="text-xs text-slate-500 font-medium">{displayRole}</p>
           </div>
           <div className="h-10 w-10 bg-gradient-to-br from-blue-500 via-cyan-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25 ring-2 ring-white">
             <User className="h-5 w-5 text-white" />
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleSignOut}
-            className="hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200"
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
         </div>
+
+        {/* Expandable tabs for user menu */}
+        <ExpandableTabs
+          tabs={userMenuTabs}
+          onChange={handleTabChange}
+          activeColor="text-blue-600"
+          className="border-slate-200 bg-white/90 backdrop-blur-sm shadow-lg"
+        />
       </div>
     </header>
   );

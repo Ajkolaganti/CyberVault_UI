@@ -1,14 +1,16 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { GlowingEffect } from './GlowingEffect';
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  glow?: boolean;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, glow = true }) => {
   if (!isOpen) return null;
 
   return (
@@ -22,6 +24,16 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
 
         {/* Modal */}
         <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full p-6 transform transition-all">
+          {glow && (
+            <GlowingEffect
+              spread={35}
+              proximity={50}
+              inactiveZone={0.4}
+              borderWidth={2}
+              glow={true}
+              disabled={false}
+            />
+          )}
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
             <button

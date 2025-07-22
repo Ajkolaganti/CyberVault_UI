@@ -137,7 +137,7 @@ export const AuthPage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
-        <LoadingSpinner size="lg" />
+        <LoadingSpinner variant="dotlock" size="lg" text="Authenticating..." />
       </div>
     );
   }

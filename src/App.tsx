@@ -4,11 +4,15 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './components/auth/AuthProvider';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AuthPage } from './components/auth/AuthPage';
+import { SessionManager } from './components/auth/SessionManager';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { Dashboard } from './pages/Dashboard';
 import { CredentialVault } from './pages/CredentialVault';
 import { SessionMonitoring } from './pages/SessionMonitoring';
 import { JITAccess } from './pages/JITAccess';
+import { SignupPage } from './pages/SignupPage';
+import { LoadingDemoPage } from './pages/LoadingDemoPage';
+import { InactivityTestPage } from './pages/InactivityTestPage';
 
 // Placeholder components for remaining pages
 const CertificateManager = () => <div className="p-6"><h1 className="text-2xl font-bold">Certificate Manager</h1><p className="text-gray-600">Manage SSL/TLS certificates and track expiration dates.</p></div>;
@@ -22,12 +26,22 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <SessionManager />
         <div className="min-h-screen bg-gray-50">
           <Routes>
             {/* Auth routes */}
             <Route path="/login" element={<AuthPage />} />
-            <Route path="/signup" element={<AuthPage />} />
+            <Route path="/signup" element={<SignupPage />} />
             <Route path="/auth" element={<AuthPage />} />
+            
+            {/* Demo route for new signup */}
+            <Route path="/signup-new" element={<SignupPage />} />
+            
+            {/* Demo route for loading animations */}
+            <Route path="/loading-demo" element={<LoadingDemoPage />} />
+            
+            {/* Demo route for inactivity logout */}
+            <Route path="/inactivity-test" element={<InactivityTestPage />} />
             
             {/* Protected routes */}
             <Route path="/" element={

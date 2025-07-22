@@ -5,7 +5,8 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
-import { getAuthHeaders, useAuthStore } from '../store/authStore';
+import { AnimatedTabs } from '../components/ui/AnimatedTabs';
+import { getAuthHeaders } from '../store/authStore';
 import {
   Clock,
   Plus,
@@ -13,29 +14,45 @@ import {
   XCircle,
   AlertTriangle,
   Timer,
-  User
+  User,
+  RefreshCw
 } from 'lucide-react';
 
 interface AccessRequest {
   id: string;
   requester: string;
   resource: string;
+  system?: string;
   reason: string;
   requestedDuration: string;
-  status: 'pending' | 'approved' | 'denied' | 'expired' | 'active';
+  status: 'pending' | 'approved' | 'denied' | 'expired' | 'active' | 'expiring_soon';
   requestTime: string;
   approver?: string;
   expiresAt?: string;
   riskLevel: 'low' | 'medium' | 'high';
+  computed_status?: string;
+  time_remaining?: number;
+  username?: string;
+}
+
+interface JITStatistics {
+  active: number;
+  expired: number;
+  total: number;
+  expiring_soon: number;
+  last_updated: string;
 }
 
 export const JITAccess: React.FC = () => {
-  const { user, token } = useAuthStore();
   const [selectedTab, setSelectedTab] = useState<'requests' | 'active' | 'history'>('requests');
   const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const [statistics, setStatistics] = useState<JITStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
+  const [extensionRequestId, setExtensionRequestId] = useState<string>('');
+  const [extensionResourceName, setExtensionResourceName] = useState<string>('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -67,8 +84,24 @@ export const JITAccess: React.FC = () => {
     };
 
     // Calculate time remaining for expires_at
-    const formatExpiresAt = (expiresAt: string) => {
+    const formatExpiresAt = (expiresAt: string, timeRemaining?: number) => {
       if (!expiresAt) return undefined;
+      
+      // Use time_remaining from backend if available
+      if (timeRemaining !== undefined) {
+        if (timeRemaining <= 0) return 'Expired';
+        
+        const minutes = Math.floor(timeRemaining / (1000 * 60));
+        const hours = Math.floor(minutes / 60);
+        
+        if (hours > 0) {
+          return `${hours}h ${minutes % 60}m`;
+        } else {
+          return `${minutes}m`;
+        }
+      }
+      
+      // Fallback to client-side calculation
       try {
         const expiryTime = new Date(expiresAt);
         const now = new Date();
@@ -85,25 +118,29 @@ export const JITAccess: React.FC = () => {
           return `${minutes}m`;
         }
       } catch {
-        return expiresAt;
+        return 'Error';
       }
     };
 
     const transformed = {
       id: backendItem.id,
       requester: backendItem.username || backendItem.user_email || backendItem.requester || (backendItem.user_id ? `User ID: ${backendItem.user_id}` : 'Current User'),
-      resource: backendItem.resource || backendItem.system || 'Unknown Resource',
+      resource: backendItem.resource || 'Unknown Resource',
+      system: backendItem.system,
       reason: backendItem.business_justification || backendItem.reason || backendItem.justification || backendItem.description || 'No reason provided',
       requestedDuration: backendItem.requested_duration || backendItem.requestedDuration || backendItem.duration || '1 hour',
-      status: backendItem.active === true ? 'active' : 
-              backendItem.status || 
-              (backendItem.approved === true ? 'approved' : 
+      status: backendItem.computed_status || backendItem.status || 
+              (backendItem.active === true ? 'active' : 
+               backendItem.approved === true ? 'approved' : 
                backendItem.denied === true ? 'denied' : 
                backendItem.active === false ? 'expired' : 'pending'),
       requestTime: formatTimestamp(backendItem.created_at || backendItem.requestTime || new Date().toISOString()),
       approver: backendItem.approver || backendItem.approved_by,
-      expiresAt: formatExpiresAt(backendItem.expires_at || backendItem.expiresAt),
-      riskLevel: backendItem.risk_level || backendItem.riskLevel || 'medium'
+      expiresAt: formatExpiresAt(backendItem.expires_at || backendItem.expiresAt, backendItem.time_remaining),
+      riskLevel: backendItem.risk_level || backendItem.riskLevel || 'medium',
+      computed_status: backendItem.computed_status,
+      time_remaining: backendItem.time_remaining,
+      username: backendItem.username
     };
     
     console.log('Transformed to:', transformed);
@@ -111,7 +148,7 @@ export const JITAccess: React.FC = () => {
   };
 
   // API Functions
-  const fetchRequests = async () => {
+  const fetchRequests = async (forceStatus?: string) => {
     setLoading(true);
     setRefreshing(true);
     setError(null);
@@ -127,8 +164,21 @@ export const JITAccess: React.FC = () => {
     }
     
     try {
-      console.log('Making JIT request with headers:', authHeaders);
-      const res = await fetch('/api/v1/jit', {
+      // Determine which status to fetch based on selected tab or forced status
+      const statusParam = forceStatus || (selectedTab === 'active' ? 'active' : 
+                                         selectedTab === 'history' ? 'history' : 
+                                         selectedTab === 'requests' ? 'pending' : 
+                                         'all');
+      
+      console.log(`Making JIT request for status: ${statusParam}`);
+      
+      // Build URL with appropriate parameters
+      let url = '/api/v1/jit';
+      if (statusParam !== 'all') {
+        url += `?status=${statusParam}`;
+      }
+      
+      const res = await fetch(url, {
         headers: authHeaders,
       });
       
@@ -138,8 +188,8 @@ export const JITAccess: React.FC = () => {
         const data = await res.json();
         console.log('JIT fetch data received:', data);
         
-        // Handle different possible response structures
-        const rawRequestsList = data.requests || data.items || data || [];
+        // Handle the new backend response structure
+        const rawRequestsList = data.data || data.requests || data.items || data || [];
         console.log('Raw requests list:', rawRequestsList);
         
         // Transform backend data to frontend format
@@ -154,31 +204,38 @@ export const JITAccess: React.FC = () => {
         
         console.log('Final transformed requests:', transformedRequests);
         setRequests(transformedRequests);
+      } else if (res.status === 401) {
+        setError('Authentication required. Please log in again.');
       } else {
-        // Handle different error statuses
-        console.log('JIT endpoint returned error status:', res.status);
-        if (res.status === 401) {
-          setError('Authentication expired. Please log in again.');
-          console.log('Authentication failed, removing token');
-          localStorage.removeItem('cybervault_token');
-        } else if (res.status === 404) {
-          console.log('JIT endpoint not found, using empty array');
-          setRequests([]);
-        } else {
-          // For other errors, try to parse error message
-          const errorData = await res.text();
-          console.log('Error response:', errorData);
-          setError(`Server error: ${res.status}`);
-          setRequests([]);
-        }
+        const errorData = await res.json().catch(() => ({ message: 'Unknown error' }));
+        setError(errorData.message || `Error ${res.status}: ${res.statusText}`);
       }
-    } catch (err: any) {
-      console.log('JIT endpoint error:', err);
-      // If there's a network error or endpoint doesn't exist, start with empty array
-      setRequests([]);
+    } catch (err) {
+      console.error('Error fetching JIT requests:', err);
+      setError('Failed to fetch access requests. Please check your connection.');
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  // Fetch statistics for dashboard
+  const fetchStatistics = async () => {
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders.Authorization) return;
+    
+    try {
+      const res = await fetch('/api/v1/jit/admin/statistics', {
+        headers: authHeaders,
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        console.log('JIT statistics received:', data);
+        setStatistics(data);
+      }
+    } catch (err) {
+      console.error('Error fetching JIT statistics:', err);
     }
   };
 
@@ -301,16 +358,50 @@ export const JITAccess: React.FC = () => {
     }
   };
 
+  const handleExtend = async (requestId: string, extensionMinutes: number = 60) => {
+    try {
+      setActionLoading(requestId);
+      const res = await fetch(`/api/v1/jit/${requestId}/extend`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          extensionMinutes: extensionMinutes
+        }),
+      });
+
+      if (res.ok) {
+        await fetchRequests(); // Refresh the list
+      } else {
+        const errorData = await res.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.message || 'Failed to extend access');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to extend access');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   useEffect(() => {
     fetchRequests();
-  }, []);
+    fetchStatistics();
+  }, [selectedTab]); // Re-fetch when tab changes
+
+  const handleTabChange = (value: string) => {
+    setSelectedTab(value as 'requests' | 'active' | 'history');
+    // Clear any existing error when switching tabs
+    setError(null);
+  };
 
   const filteredRequests = requests.filter(request => {
     switch (selectedTab) {
       case 'requests':
         return request.status === 'pending';
       case 'active':
-        return request.status === 'active' || request.status === 'approved';
+        return request.status === 'active' || request.status === 'approved' || request.status === 'expiring_soon';
       case 'history':
         return request.status === 'denied' || request.status === 'expired';
       default:
@@ -325,6 +416,8 @@ export const JITAccess: React.FC = () => {
       case 'approved':
       case 'active':
         return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'expiring_soon':
+        return <AlertTriangle className="h-4 w-4 text-orange-500" />;
       case 'denied':
         return <XCircle className="h-4 w-4 text-red-500" />;
       case 'expired':
@@ -336,7 +429,7 @@ export const JITAccess: React.FC = () => {
 
   // Tab counts
   const pendingCount = requests.filter(r => r.status === 'pending').length;
-  const activeCount = requests.filter(r => r.status === 'active' || r.status === 'approved').length;
+  const activeCount = requests.filter(r => r.status === 'active' || r.status === 'approved' || r.status === 'expiring_soon').length;
   const historyCount = requests.filter(r => r.status === 'denied' || r.status === 'expired').length;
 
   return (
@@ -349,47 +442,67 @@ export const JITAccess: React.FC = () => {
             {refreshing && <span className="text-blue-500"> • Refreshing...</span>}
           </p>
         </div>
-        <Button
-          onClick={() => setShowNewRequestModal(true)}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          New Request
-        </Button>
+        <div className="flex space-x-3">
+          <Button
+            onClick={() => {
+              fetchRequests();
+              fetchStatistics();
+            }}
+            variant="secondary"
+            disabled={refreshing}
+            className="flex items-center"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+          <Button
+            onClick={() => setShowNewRequestModal(true)}
+            className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Request
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
-      {/* Optionally fetch and display stats from backend */}
+      {statistics && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="text-center" glowIntensity="subtle">
+            <div className="text-2xl font-bold text-blue-600">{statistics.total}</div>
+            <div className="text-sm text-gray-600">Total Requests</div>
+          </Card>
+          <Card className="text-center" glowIntensity="subtle">
+            <div className="text-2xl font-bold text-green-600">{statistics.active}</div>
+            <div className="text-sm text-gray-600">Active Sessions</div>
+          </Card>
+          <Card className="text-center" glowIntensity="subtle">
+            <div className="text-2xl font-bold text-orange-600">{statistics.expiring_soon}</div>
+            <div className="text-sm text-gray-600">Expiring Soon</div>
+          </Card>
+          <Card className="text-center" glowIntensity="subtle">
+            <div className="text-2xl font-bold text-gray-600">{statistics.expired}</div>
+            <div className="text-sm text-gray-600">Expired</div>
+          </Card>
+        </div>
+      )}
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {[
-            { key: 'requests', label: 'Pending Requests', count: pendingCount },
-            { key: 'active', label: 'Active Access', count: activeCount },
-            { key: 'history', label: 'History', count: historyCount }
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setSelectedTab(tab.key as any)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                selectedTab === tab.key
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              {tab.label}
-              <Badge variant="default">
-                {tab.count}
-              </Badge>
-            </button>
-          ))}
-        </nav>
+      <div className="flex justify-center">
+        <AnimatedTabs
+          tabs={[
+            { label: `Pending Requests (${pendingCount})`, value: 'requests' },
+            { label: `Active Access (${activeCount})`, value: 'active' },
+            { label: `History (${historyCount})`, value: 'history' }
+          ]}
+          onTabChange={handleTabChange}
+          defaultValue='requests'
+        />
       </div>
 
       {/* Requests List */}
       {loading ? (
-        <Card className="text-center py-12">
+        <Card className="text-center py-12" glowIntensity="normal">
           <LoadingSpinner 
             variant="lock" 
             size="lg" 
@@ -398,7 +511,7 @@ export const JITAccess: React.FC = () => {
           />
         </Card>
       ) : error ? (
-        <Card className="text-center py-12">
+        <Card className="text-center py-12" glowIntensity="strong">
           <Clock className="h-12 w-12 text-red-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-red-900 mb-2">
             {error}
@@ -406,8 +519,13 @@ export const JITAccess: React.FC = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          {filteredRequests.map((request) => (
-            <Card key={request.id} className="hover:shadow-md transition-shadow">
+          {filteredRequests.map((request, index) => (
+            <Card 
+              key={request.id} 
+              className="hover:shadow-md transition-shadow" 
+              hover={true}
+              glowIntensity={index % 2 === 0 ? 'subtle' : 'normal'}
+            >
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-4">
                   <div className="flex-shrink-0 pt-1">
@@ -427,9 +545,10 @@ export const JITAccess: React.FC = () => {
                       <Badge variant={
                         request.status === 'pending' ? 'warning' :
                         request.status === 'active' || request.status === 'approved' ? 'success' :
+                        request.status === 'expiring_soon' ? 'warning' :
                         request.status === 'denied' ? 'danger' : 'default'
                       }>
-                        {request.status}
+                        {request.status === 'expiring_soon' ? 'expiring soon' : request.status}
                       </Badge>
                     </div>
                     
@@ -485,16 +604,32 @@ export const JITAccess: React.FC = () => {
                       </Button>
                     </>
                   )}
-                  {request.status === 'active' && (
-                    <Button
-                      onClick={() => handleRevoke(request.id)}
-                      size="sm"
-                      variant="danger"
-                      loading={actionLoading === request.id}
-                    >
-                      <XCircle className="h-4 w-4 mr-1" />
-                      Revoke
-                    </Button>
+                  {(request.status === 'active' || request.status === 'expiring_soon') && (
+                    <>
+                      <Button
+                        onClick={() => {
+                          setExtensionRequestId(request.id);
+                          setExtensionResourceName(request.resource);
+                          setShowExtensionModal(true);
+                        }}
+                        size="sm"
+                        variant="secondary"
+                        loading={actionLoading === request.id}
+                        className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
+                      >
+                        <Clock className="h-4 w-4 mr-1" />
+                        Extend
+                      </Button>
+                      <Button
+                        onClick={() => handleRevoke(request.id)}
+                        size="sm"
+                        variant="danger"
+                        loading={actionLoading === request.id}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Revoke
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -504,7 +639,7 @@ export const JITAccess: React.FC = () => {
       )}
 
       {!loading && !error && filteredRequests.length === 0 && (
-        <Card className="text-center py-12">
+        <Card className="text-center py-12" glowIntensity="normal">
           <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             No {selectedTab} requests
@@ -527,6 +662,20 @@ export const JITAccess: React.FC = () => {
           loading={actionLoading === 'create'}
         />
       </Modal>
+
+      {/* Extension Modal */}
+      <ExtensionModal
+        isOpen={showExtensionModal}
+        onClose={() => setShowExtensionModal(false)}
+        onExtend={(minutes) => {
+          if (extensionRequestId) {
+            handleExtend(extensionRequestId, minutes);
+            setShowExtensionModal(false);
+          }
+        }}
+        loading={actionLoading === extensionRequestId}
+        resourceName={extensionResourceName}
+      />
     </div>
   );
 };
@@ -640,5 +789,83 @@ const NewRequestForm: React.FC<NewRequestFormProps> = ({ onSubmit, onCancel, loa
         </Button>
       </div>
     </form>
+  );
+};
+
+interface ExtensionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onExtend: (minutes: number) => void;
+  loading: boolean;
+  resourceName: string;
+}
+
+const ExtensionModal: React.FC<ExtensionModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onExtend, 
+  loading, 
+  resourceName 
+}) => {
+  const [extensionMinutes, setExtensionMinutes] = useState(60);
+
+  const extensionOptions = [
+    { label: '30 minutes', value: 30 },
+    { label: '1 hour', value: 60 },
+    { label: '2 hours', value: 120 },
+    { label: '4 hours', value: 240 },
+    { label: '8 hours', value: 480 }
+  ];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onExtend(extensionMinutes);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Extend Access - ${resourceName}`}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Select extension duration:
+          </label>
+          <div className="space-y-2">
+            {extensionOptions.map((option) => (
+              <label key={option.value} className="flex items-center">
+                <input
+                  type="radio"
+                  name="extension"
+                  value={option.value}
+                  checked={extensionMinutes === option.value}
+                  onChange={(e) => setExtensionMinutes(Number(e.target.value))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700">{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex space-x-3 pt-4">
+          <Button
+            type="submit"
+            loading={loading}
+            className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+          >
+            <Clock className="h-4 w-4 mr-2" />
+            Extend Access
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1"
+          >
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };
