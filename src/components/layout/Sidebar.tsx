@@ -9,11 +9,12 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Shield },
-  { name: 'Credential Vault', href: '/credentials', icon: Key },
-  { name: 'Certificates', href: '/certificates', icon: Certificate },
-  { name: 'Discovery', href: '/discovery', icon: Search },
+  { name: 'Credential Vault', href: '/vault', icon: Key },
+  { name: 'Accounts', href: '/accounts', icon: Users },
   { name: 'JIT Access', href: '/jit-access', icon: Clock },
   { name: 'Session Monitoring', href: '/sessions', icon: Monitor },
+  { name: 'Discovery', href: '/discovery', icon: Search },
+  { name: 'Certificates', href: '/certificates', icon: Certificate },
   { name: 'Access Control', href: '/access-control', icon: Users },
   { name: 'Integrations', href: '/integrations', icon: Puzzle },
   { name: 'Audit Logs', href: '/audit-logs', icon: FileText },

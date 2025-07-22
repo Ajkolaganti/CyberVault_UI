@@ -8,6 +8,7 @@ import { SessionManager } from './components/auth/SessionManager';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { Dashboard } from './pages/Dashboard';
 import { CredentialVault } from './pages/CredentialVault';
+import { Accounts } from './pages/Accounts';
 import { SessionMonitoring } from './pages/SessionMonitoring';
 import { JITAccess } from './pages/JITAccess';
 import { SignupPage } from './pages/SignupPage';
@@ -56,6 +57,14 @@ function App() {
               <ProtectedRoute>
                 <DashboardLayout>
                   <CredentialVault />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/accounts" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <Accounts />
                 </DashboardLayout>
               </ProtectedRoute>
             } />
