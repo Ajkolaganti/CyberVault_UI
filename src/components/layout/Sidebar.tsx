@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, Key, AlignCenterVertical as Certificate, Search, Clock, Monitor, Users, Puzzle, FileText, Settings, X, Vault, ChevronDown, ChevronRight } from 'lucide-react';
+import { Shield, Key, AlignCenterVertical as Certificate, Search, Clock, Monitor, Users, Puzzle, FileText, Settings, X, Vault, ChevronDown, ChevronRight, Activity } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -34,6 +34,7 @@ const navigation: NavItem[] = [
     icon: Users, 
     subItems: accountsSubItems 
   },
+  { name: 'CPM Dashboard', href: '/cpm-dashboard', icon: Activity },
   { name: 'JIT Access', href: '/jit-access', icon: Clock },
   { name: 'Session Monitoring', href: '/sessions', icon: Monitor },
   { name: 'Certificates', href: '/certificates', icon: Certificate },

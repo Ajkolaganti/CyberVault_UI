@@ -8,10 +8,11 @@ import { getAuthHeaders } from '../../store/authStore';
 interface Credential {
   id: string;
   name: string;
-  type: 'database' | 'api' | 'server' | 'application';
-  username: string;
-  lastAccessed: string;
-  status: 'active' | 'expired' | 'inactive';
+  type: 'password' | 'ssh' | 'api_token' | 'certificate' | 'database';
+  username?: string;
+  host?: string;
+  port?: number;
+  status: 'pending' | 'active' | 'expired' | 'failed' | 'verified';
   environment: 'production' | 'staging' | 'development';
 }
 
@@ -28,9 +29,11 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
 }) => {
   const [formData, setFormData] = useState({
     name: '',
-    type: 'database' as Credential['type'],
+    type: 'password' as Credential['type'],
     username: '',
     password: '',
+    host: '',
+    port: '',
     environment: 'development' as Credential['environment']
   });
   const [loading, setLoading] = useState(false);
@@ -57,8 +60,10 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
           name: formData.name,
           type: formData.type,
           value: formData.password, // Backend expects 'value' field for the password
-          username: formData.username,
-          environment: formData.environment,
+          username: formData.username || null,
+          host: formData.host || null,
+          port: formData.port ? parseInt(formData.port) : null,
+          // environment is not part of the new schema, remove if not needed
         }),
       });
       
@@ -90,10 +95,11 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
         id: data.id || Math.random().toString(36).substr(2, 9),
         name: formData.name,
         type: formData.type,
-        username: formData.username,
+        username: formData.username || undefined,
+        host: formData.host || undefined,
+        port: formData.port ? parseInt(formData.port) : undefined,
         environment: formData.environment,
-        status: 'active',
-        lastAccessed: new Date().toISOString()
+        status: 'pending'
       };
       
       console.log('Created credential:', { 
@@ -106,9 +112,11 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
       onAdd(); // Call the callback to refresh the parent list
       setFormData({
         name: '',
-        type: 'database',
+        type: 'password',
         username: '',
         password: '',
+        host: '',
+        port: '',
         environment: 'development'
       });
       onClose();
@@ -158,10 +166,11 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             required
           >
+            <option value="password">Password</option>
+            <option value="ssh">SSH Key</option>
+            <option value="api_token">API Token</option>
+            <option value="certificate">Certificate</option>
             <option value="database">Database</option>
-            <option value="api">API Key</option>
-            <option value="server">Server</option>
-            <option value="application">Application</option>
           </select>
         </div>
 
@@ -170,10 +179,28 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
           name="username"
           value={formData.username}
           onChange={handleChange}
-          required
           minLength={2}
           maxLength={50}
-          placeholder="Enter username"
+          placeholder="Enter username (optional)"
+        />
+
+        <Input
+          label="Host"
+          name="host"
+          value={formData.host}
+          onChange={handleChange}
+          placeholder="Enter hostname or IP address (optional)"
+        />
+
+        <Input
+          label="Port"
+          name="port"
+          type="number"
+          value={formData.port}
+          onChange={handleChange}
+          min="1"
+          max="65535"
+          placeholder="Enter port number (optional)"
         />
 
         <Input

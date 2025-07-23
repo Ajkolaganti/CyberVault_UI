@@ -7,6 +7,8 @@ import { SessionManager } from './components/auth/SessionManager';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { Dashboard } from './pages/Dashboard';
 import { CredentialVault } from './pages/CredentialVault';
+import { CredentialDetail } from './pages/CredentialDetail';
+import { CPMDashboard } from './pages/CPMDashboard';
 import { Accounts } from './pages/Accounts';
 import { Safes } from './pages/Safes';
 import { SessionMonitoring } from './pages/SessionMonitoring';
@@ -14,6 +16,7 @@ import { JITAccess } from './pages/JITAccess';
 import { SignupPage } from './pages/SignupPage';
 import { LoadingDemoPage } from './pages/LoadingDemoPage';
 import { InactivityTestPage } from './pages/InactivityTestPage';
+import { CPMTestComponent } from './components/debug/CPMTestComponent';
 
 // Placeholder components for remaining pages
 const CertificateManager = () => <div className="p-6"><h1 className="text-2xl font-bold">Certificate Manager</h1><p className="text-gray-600">Manage SSL/TLS certificates and track expiration dates.</p></div>;
@@ -44,6 +47,15 @@ function App() {
             {/* Demo route for inactivity logout */}
             <Route path="/inactivity-test" element={<InactivityTestPage />} />
             
+            {/* CPM Testing route */}
+            <Route path="/cpm-test" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <CPMTestComponent />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            
             {/* Protected routes */}
             <Route path="/" element={
               <ProtectedRoute>
@@ -57,6 +69,22 @@ function App() {
               <ProtectedRoute>
                 <DashboardLayout>
                   <CredentialVault />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/vault/:id" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <CredentialDetail />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/cpm-dashboard" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <CPMDashboard />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

@@ -181,6 +181,167 @@ export const safesApi = {
     }),
 };
 
+// CPM (Credential Protection Management) API functions
+export const getCPMStatus = async () => {
+  try {
+    return await apiRequest('/cpm/status');
+  } catch (error) {
+    console.error('Failed to get CPM status:', error);
+    throw error;
+  }
+};
+
+// Trigger manual credential verification
+export const verifyCredential = async (credentialId: string, force: boolean = false) => {
+  try {
+    const body = {
+      credential_ids: [credentialId], // Send as array of UUIDs
+      force: force                    // Optional boolean parameter
+    };
+    return await apiRequest('/cpm/verify', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.error('Failed to verify credential:', error);
+    throw error;
+  }
+};
+
+// Trigger manual verification for multiple credentials
+export const verifyMultipleCredentials = async (credentialIds: string[], force: boolean = false) => {
+  try {
+    const body = {
+      credential_ids: credentialIds, // Array of credential UUIDs
+      force: force                   // Optional boolean parameter
+    };
+    return await apiRequest('/cpm/verify', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.error('Failed to verify credentials:', error);
+    throw error;
+  }
+};
+
+// Trigger global verification for all credentials
+export const verifyAllCredentials = async (force: boolean = false) => {
+  try {
+    // First, get all credentials to get their IDs
+    const credentialsResponse = await apiRequest('/credentials');
+    const credentials = credentialsResponse.data || credentialsResponse.credentials || credentialsResponse || [];
+    
+    // Extract all credential IDs
+    const credentialIds = credentials.map((cred: any) => cred.id).filter(Boolean);
+    
+    if (credentialIds.length === 0) {
+      throw new Error('No credentials found to verify');
+    }
+    
+    // Verify all credentials
+    const body = {
+      credential_ids: credentialIds,
+      force: force
+    };
+    return await apiRequest('/cpm/verify', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.error('Failed to trigger global verification:', error);
+    throw error;
+  }
+};
+
+// Get verification history for a specific credential
+export const getCredentialHistory = async (credentialId: string) => {
+  try {
+    return await apiRequest(`/cpm/credentials/${credentialId}/history`);
+  } catch (error) {
+    console.error('Failed to fetch credential history:', error);
+    throw error;
+  }
+};
+
+// Get credentials that need attention
+export const getCredentialsNeedingAttention = async () => {
+  try {
+    return await apiRequest('/cpm/credentials/attention');
+  } catch (error) {
+    console.error('Failed to fetch credentials needing attention:', error);
+    throw error;
+  }
+};
+
+// Batch update credential status (Admin only)
+export const batchUpdateCredentials = async (updates: Array<{
+  credentialId: string;
+  status: string;
+  reason?: string;
+}>) => {
+  try {
+    return await apiRequest('/cpm/credentials/batch-update', {
+      method: 'POST',
+      body: JSON.stringify({ updates }),
+    });
+  } catch (error) {
+    console.error('Failed to batch update credentials:', error);
+    throw error;
+  }
+};
+
+// Get CPM configuration (Admin only)
+export const getCPMConfiguration = async () => {
+  try {
+    return await apiRequest('/cpm/configuration');
+  } catch (error) {
+    console.error('Failed to get CPM configuration:', error);
+    throw error;
+  }
+};
+
+// Health check endpoints
+export const getHealthStatus = async () => {
+  try {
+    const response = await fetch('/health');
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to get health status:', error);
+    throw error;
+  }
+};
+
+export const getReadinessStatus = async () => {
+  try {
+    const response = await fetch('/ready');
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to get readiness status:', error);
+    throw error;
+  }
+};
+
+export const getLivenessStatus = async () => {
+  try {
+    const response = await fetch('/live');
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to get liveness status:', error);
+    throw error;
+  }
+};
+
+export const getServiceMetrics = async () => {
+  try {
+    const response = await fetch('/metrics');
+    return await response.text(); // Metrics are usually returned as text
+  } catch (error) {
+    console.error('Failed to get service metrics:', error);
+    throw error;
+  }
+};
+
 // Test function to verify API connectivity
 export const testApiConnectivity = async () => {
   try {
@@ -207,3 +368,13 @@ export const testApiConnectivity = async () => {
     return false;
   }
 };
+
+/**
+ * Credential verification API functions
+ * 
+ * The backend expects:
+ * - credential_ids: array of UUIDs (must contain valid credential IDs)
+ * - force: optional boolean parameter
+ * 
+ * For global verification, we first fetch all credential IDs and then verify them all.
+ */
