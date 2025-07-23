@@ -22,7 +22,11 @@ import {
   EyeOff,
   Cloud,
   Terminal,
-  Lock
+  Lock,
+  Network,
+  Share,
+  FileText,
+  Settings
 } from 'lucide-react';
 
 interface CreateAccountModalProps {
@@ -46,6 +50,20 @@ const systemTypes = [
   { value: 'Website', label: 'Website', icon: Globe, color: 'bg-indigo-500' },
 ];
 
+const connectionMethods = [
+  { value: 'RDP', label: 'RDP (Remote Desktop)', icon: Monitor, color: 'bg-blue-500' },
+  { value: 'SSH', label: 'SSH (Secure Shell)', icon: Terminal, color: 'bg-green-600' },
+  { value: 'SQL', label: 'SQL (Database)', icon: Database, color: 'bg-purple-600' },
+  { value: 'HTTPS', label: 'HTTPS (Secure Web)', icon: Lock, color: 'bg-green-500' },
+  { value: 'HTTP', label: 'HTTP (Web)', icon: Globe, color: 'bg-orange-500' },
+  { value: 'SFTP', label: 'SFTP (Secure FTP)', icon: Share, color: 'bg-teal-600' },
+  { value: 'Telnet', label: 'Telnet', icon: Network, color: 'bg-red-500' },
+  { value: 'VNC', label: 'VNC (Remote View)', icon: Monitor, color: 'bg-indigo-500' },
+  { value: 'PowerShell', label: 'PowerShell', icon: Terminal, color: 'bg-blue-600' },
+  { value: 'WinRM', label: 'WinRM (Windows Remote)', icon: Settings, color: 'bg-cyan-600' },
+  { value: 'Custom', label: 'Custom Protocol', icon: FileText, color: 'bg-gray-600' },
+];
+
  const CreateAccountModal: React.FC<CreateAccountModalProps> = ({
   isOpen,
   onClose,
@@ -61,6 +79,7 @@ const systemTypes = [
     notes: '',
     platform_id: '',
     safe_id: '', // Changed from safe_name to safe_id for backend
+    connection_method: 'RDP', // Default connection method
     // account_type: 'Local'  // Commented out - column not found in schema
   });
 
@@ -74,6 +93,14 @@ const systemTypes = [
   useEffect(() => {
     if (isOpen) {
       fetchUserSafes();
+    }
+  }, [isOpen]);
+
+  // Reset error state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setError(null);
+      setShowPassword(false);
     }
   }, [isOpen]);
 
@@ -154,10 +181,19 @@ const systemTypes = [
     setLoading(true);
     setError(null);
 
+    // Ensure all required fields are present
+    const dataToSend = {
+      ...formData,
+      // Explicitly ensure name is included and not empty
+      name: formData.name.trim()
+    };
+
     try {
-      console.log('Creating account with data:', formData);
+      console.log('Creating account with data:', dataToSend);
+      console.log('Account name being sent:', dataToSend.name);
+      console.log('Full form data being sent to API:', JSON.stringify(dataToSend, null, 2));
       
-      const response = await accountsApi.create(formData);
+      const response = await accountsApi.create(dataToSend);
       console.log('Account created successfully:', response);
       
       onSuccess();
@@ -173,8 +209,12 @@ const systemTypes = [
         notes: '',
         platform_id: '',
         safe_id: '', // Changed from safe_name to safe_id for backend
+        connection_method: 'RDP', // Default connection method
         // account_type: 'Local'  // Commented out - column not found in schema
       });
+      
+      // Close the modal after successful creation
+      onClose();
       
     } catch (err) {
       console.error('Error creating account:', err);
@@ -207,6 +247,16 @@ const systemTypes = [
   const getSystemColor = (systemType: string) => {
     const system = systemTypes.find(s => s.value === systemType);
     return system ? system.color : 'bg-gray-500';
+  };
+
+  const getConnectionMethodIcon = (connectionMethod: string) => {
+    const method = connectionMethods.find(m => m.value === connectionMethod);
+    return method ? method.icon : Network;
+  };
+
+  const getConnectionMethodColor = (connectionMethod: string) => {
+    const method = connectionMethods.find(m => m.value === connectionMethod);
+    return method ? method.color : 'bg-gray-500';
   };
 
   return (
@@ -255,6 +305,38 @@ const systemTypes = [
                   disabled={loading}
                   className="mt-2"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="connection_method" className="text-slate-700 font-medium">
+                  Connection Method *
+                </Label>
+                <Select 
+                  value={formData.connection_method} 
+                  onValueChange={(value) => handleInputChange('connection_method', value)}
+                  disabled={loading}
+                >
+                  <SelectTrigger className="mt-2">
+                    <div className="flex items-center gap-2">
+                      {React.createElement(getConnectionMethodIcon(formData.connection_method), {
+                        className: `h-4 w-4 text-white p-0.5 rounded ${getConnectionMethodColor(formData.connection_method)}`
+                      })}
+                      <SelectValue placeholder="Select connection method" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {connectionMethods.map((method) => (
+                      <SelectItem key={method.value} value={method.value}>
+                        <div className="flex items-center gap-2">
+                          {React.createElement(method.icon, {
+                            className: `h-4 w-4 text-white p-0.5 rounded ${method.color}`
+                          })}
+                          {method.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="lg:col-span-2">

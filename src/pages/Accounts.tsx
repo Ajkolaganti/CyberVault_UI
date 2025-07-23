@@ -248,10 +248,10 @@ export const Accounts: React.FC = () => {
 
   // Filter accounts based on search term
   const filteredAccounts = accounts.filter(account =>
-    account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    account.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    account.hostname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    account.system_type.toLowerCase().includes(searchTerm.toLowerCase())
+    (account.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (account.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (account.hostname || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (account.system_type || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Tab change handler
@@ -430,32 +430,32 @@ export const Accounts: React.FC = () => {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                      {getSystemTypeIcon(account.system_type)}
+                      {getSystemTypeIcon(account.system_type || 'Windows')}
                     </div>
                     <div>
-                      <h3 className="font-medium text-gray-900">{account.name}</h3>
-                      <p className="text-sm text-gray-500">{account.system_type}</p>
+                      <h3 className="font-medium text-gray-900">{account.name || 'Unknown Account'}</h3>
+                      <p className="text-sm text-gray-500">{account.system_type || 'Unknown'}</p>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
                     <div>
                       <p className="text-xs text-gray-500">Username</p>
-                      <p className="text-sm font-medium text-gray-900">{account.username}</p>
+                      <p className="text-sm font-medium text-gray-900">{account.username || 'N/A'}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Hostname</p>
                       <p className="text-sm font-medium text-gray-900">
-                        {account.hostname}{account.port && `:${account.port}`}
+                        {account.hostname || 'N/A'}{account.port ? `:${account.port}` : ''}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Platform Policy</p>
-                      <p className="text-sm font-medium text-gray-900">{account.platform_id}</p>
+                      <p className="text-sm font-medium text-gray-900">{account.platform_id || 'N/A'}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Safe</p>
-                      <p className="text-sm font-medium text-gray-900">{account.safe_name}</p>
+                      <p className="text-sm font-medium text-gray-900">{account.safe_name || 'N/A'}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Rotation Status</p>
@@ -468,11 +468,11 @@ export const Accounts: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
                     <div>
                       <p className="text-xs text-gray-500">Account Type</p>
-                      <p className="text-sm font-medium text-gray-900">{account.account_type}</p>
+                      <p className="text-sm font-medium text-gray-900">{account.account_type || 'N/A'}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Connection Method</p>
-                      <p className="text-sm font-medium text-gray-900">{account.connection_method}</p>
+                      <p className="text-sm font-medium text-gray-900">{account.connection_method || 'N/A'}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Last Rotated</p>
