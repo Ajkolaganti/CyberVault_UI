@@ -8,7 +8,7 @@ import { getAuthHeaders } from '../../store/authStore';
 interface Credential {
   id: string;
   name: string;
-  type: 'password' | 'ssh' | 'api_token' | 'certificate' | 'database';
+  type: 'password' | 'ssh' | 'api_token' | 'certificate' | 'database' | 'mysql' | 'postgresql' | 'mssql' | 'oracle' | 'mongodb';
   username?: string;
   host?: string;
   port?: number;
@@ -34,10 +34,35 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
     password: '',
     host: '',
     port: '',
-    environment: 'development' as Credential['environment']
+    environment: 'development' as Credential['environment'],
+    // New database-specific fields
+    database_name: '',
+    schema_name: '',
+    connection_string: '',
+    ssl_enabled: false,
+    additional_params: '{}'
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isDatabaseType = (type: string) => {
+    return ['database', 'mysql', 'postgresql', 'mssql', 'oracle', 'mongodb'].includes(type);
+  };
+
+  const requiresSchema = (type: string) => {
+    return ['postgresql', 'oracle'].includes(type);
+  };
+
+  const getDefaultPort = (type: string) => {
+    const portMap: { [key: string]: string } = {
+      'mysql': '3306',
+      'postgresql': '5432',
+      'mssql': '1433',
+      'oracle': '1521',
+      'mongodb': '27017',
+    };
+    return portMap[type] || '';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +88,12 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
           username: formData.username || null,
           host: formData.host || null,
           port: formData.port ? parseInt(formData.port) : null,
+          // New database-specific fields
+          database_name: formData.database_name || null,
+          schema_name: formData.schema_name || null,
+          connection_string: formData.connection_string || null,
+          ssl_enabled: formData.ssl_enabled,
+          additional_params: formData.additional_params ? JSON.parse(formData.additional_params) : {},
           // environment is not part of the new schema, remove if not needed
         }),
       });
@@ -117,7 +148,13 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
         password: '',
         host: '',
         port: '',
-        environment: 'development'
+        environment: 'development',
+        // Reset database-specific fields
+        database_name: '',
+        schema_name: '',
+        connection_string: '',
+        ssl_enabled: false,
+        additional_params: '{}'
       });
       onClose();
     } catch (err: any) {
@@ -128,9 +165,21 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Auto-set port when database type changes
+    if (name === 'type' && isDatabaseType(value)) {
+      const defaultPort = getDefaultPort(value);
+      setFormData(prev => ({ 
+        ...prev, 
+        [name]: value as Credential['type'],
+        port: defaultPort 
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+    
     setError(null); // Clear error when user makes changes
   };
 
@@ -170,7 +219,12 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
             <option value="ssh">SSH Key</option>
             <option value="api_token">API Token</option>
             <option value="certificate">Certificate</option>
-            <option value="database">Database</option>
+            <option value="database">Database (Generic)</option>
+            <option value="mysql">MySQL/MariaDB</option>
+            <option value="postgresql">PostgreSQL</option>
+            <option value="mssql">SQL Server</option>
+            <option value="oracle">Oracle DB</option>
+            <option value="mongodb">MongoDB</option>
           </select>
         </div>
 
@@ -231,6 +285,79 @@ export const AddCredentialModal: React.FC<AddCredentialModalProps> = ({
             <option value="production">Production</option>
           </select>
         </div>
+
+        {/* Database-specific fields */}
+        {(['database', 'mysql', 'postgresql', 'mssql', 'oracle', 'mongodb'].includes(formData.type)) && (
+          <>
+            <Input
+              label="Database Name *"
+              name="database_name"
+              value={formData.database_name}
+              onChange={handleChange}
+              required
+              placeholder="e.g., production_db, hr_system"
+            />
+
+            {requiresSchema(formData.type) && (
+              <Input
+                label="Schema Name *"
+                name="schema_name"
+                value={formData.schema_name}
+                onChange={handleChange}
+                required
+                placeholder="e.g., public, hr_schema"
+              />
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Connection String (Optional)
+              </label>
+              <textarea
+                name="connection_string"
+                value={formData.connection_string}
+                onChange={handleChange}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none font-mono text-sm"
+                placeholder="postgresql://user:pass@host:5432/dbname?sslmode=require"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Full connection string (will override individual host/port/database settings)
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="ssl_enabled"
+                name="ssl_enabled"
+                checked={formData.ssl_enabled}
+                onChange={(e) => setFormData(prev => ({ ...prev, ssl_enabled: e.target.checked }))}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="ssl_enabled" className="text-sm font-medium text-gray-700">
+                Enable SSL/TLS
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Additional Parameters (JSON)
+              </label>
+              <textarea
+                name="additional_params"
+                value={formData.additional_params}
+                onChange={handleChange}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none font-mono text-sm"
+                placeholder='{"timeout": 30, "pool_size": 10}'
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Extra connection parameters as valid JSON (optional)
+              </p>
+            </div>
+          </>
+        )}
 
         <div className="flex justify-end space-x-2 mt-6">
           <Button

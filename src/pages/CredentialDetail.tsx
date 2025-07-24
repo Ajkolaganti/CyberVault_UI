@@ -7,11 +7,8 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { AuditLogList, AuditLog } from '../components/ui/AuditLogList';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
-import { getAuthHeaders } from '../store/authStore';
 import { 
-  verifyCredential, 
-  getCredentialHistory,
-  getCPMStatus 
+  credentialsApi
 } from '../utils/api';
 import {
   ArrowLeft,
@@ -32,17 +29,25 @@ interface Credential {
   id: string;
   user_id: string;
   name: string;
-  type: 'database' | 'api' | 'server' | 'application';
+  type: 'database' | 'api' | 'server' | 'application' | 'mysql' | 'postgresql' | 'mssql' | 'oracle' | 'mongodb';
   value: string;
   username?: string;
+  host?: string;
+  port?: number;
   lastAccessed?: string;
-  status?: 'active' | 'expired' | 'inactive';
+  status?: 'active' | 'expired' | 'inactive' | 'verified' | 'failed' | 'pending';
   environment?: 'production' | 'staging' | 'development';
   created_at: string;
   updated_at: string;
   verificationStatus?: 'verified' | 'failed' | 'pending';
   lastVerifiedAt?: string;
   verificationError?: string;
+  // New database-specific fields
+  database_name?: string;
+  schema_name?: string;
+  connection_string?: string;
+  ssl_enabled?: boolean;
+  additional_params?: any;
 }
 
 const getTypeIcon = (type: Credential['type']) => {
@@ -82,37 +87,44 @@ export const CredentialDetail: React.FC = () => {
     setError(null);
     
     try {
-      const res = await fetch(`/api/v1/credentials/${id}`, {
-        headers: getAuthHeaders(),
-      });
+      const data = await credentialsApi.get(id);
+      console.log('Credential API response:', data); // Debug logging
       
-      if (res.ok) {
-        const data = await res.json();
-        const transformedCredential: Credential = {
-          id: data.id,
-          user_id: data.user_id,
-          name: data.name,
-          type: data.type || 'application',
-          value: data.value || '',
-          username: data.username || 'N/A',
-          lastAccessed: data.updated_at ? new Date(data.updated_at).toLocaleString() : 'Unknown',
-          status: data.status || 'active',
-          environment: data.environment || 'production',
-          created_at: data.created_at,
-          updated_at: data.updated_at,
-          verificationStatus: data.verification_status || 'pending',
-          lastVerifiedAt: data.last_verified_at ? new Date(data.last_verified_at).toLocaleString() : undefined,
-          verificationError: data.verification_error || undefined
-        };
-        setCredential(transformedCredential);
-      } else if (res.status === 404) {
+      const transformedCredential: Credential = {
+        id: data.id,
+        user_id: data.user_id,
+        name: data.name,
+        type: data.type || 'application',
+        value: data.value || '',
+        username: data.username || 'N/A',
+        host: data.host,
+        port: data.port,
+        lastAccessed: data.updated_at ? new Date(data.updated_at).toLocaleString() : 'Unknown',
+        status: data.status || 'active',
+        environment: data.environment || 'production',
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        verificationStatus: data.verification_status || data.verificationStatus || 'pending',
+        lastVerifiedAt: data.last_verified_at || data.verified_at ? 
+          new Date(data.last_verified_at || data.verified_at).toLocaleString() : undefined,
+        verificationError: data.verification_error || data.verificationError || undefined,
+        // New database-specific fields
+        database_name: data.database_name,
+        schema_name: data.schema_name,
+        connection_string: data.connection_string,
+        ssl_enabled: data.ssl_enabled,
+        additional_params: data.additional_params
+      };
+      
+      console.log('Transformed credential:', transformedCredential); // Debug logging
+      setCredential(transformedCredential);
+    } catch (err: any) {
+      console.error('Failed to fetch credential:', err);
+      if (err.message.includes('404') || err.message.includes('Not found')) {
         setError('Credential not found');
       } else {
         setError('Failed to load credential');
       }
-    } catch (err: any) {
-      console.error('Failed to fetch credential:', err);
-      setError('Failed to connect to server');
     } finally {
       setLoading(false);
     }
@@ -124,22 +136,49 @@ export const CredentialDetail: React.FC = () => {
     
     setAuditLoading(true);
     try {
-      const result = await getCredentialHistory(id);
+      const result = await credentialsApi.getHistory(id);
+      console.log('History API response:', result); // Debug logging
       
-      const transformedLogs: AuditLog[] = (result.data || result.logs || []).map((log: any) => ({
-        id: log.id || `${Date.now()}-${Math.random()}`,
-        timestamp: log.timestamp || log.created_at,
-        action: log.action || 'Unknown Action',
-        result: log.result || (log.success ? 'success' : 'failure'),
-        summary: log.summary || log.message || 'No details available',
-        metadata: log.metadata || {},
-        user: log.user ? {
-          id: log.user.id,
-          name: log.user.name || log.user.email,
-          email: log.user.email
-        } : undefined
-      }));
+      // Handle different response structures
+      const historyData = result.history || result.data || result.logs || result || [];
       
+      const transformedLogs: AuditLog[] = (Array.isArray(historyData) ? historyData : []).map((log: any) => {
+        // Ensure summary is always a string
+        let summary = 'No details available';
+        if (typeof log.summary === 'string') {
+          summary = log.summary;
+        } else if (typeof log.message === 'string') {
+          summary = log.message;
+        } else if (log.details) {
+          if (typeof log.details === 'string') {
+            summary = log.details;
+          } else if (typeof log.details === 'object') {
+            summary = JSON.stringify(log.details);
+          }
+        }
+
+        return {
+          id: log.id || `${Date.now()}-${Math.random()}`,
+          timestamp: log.timestamp || log.created_at || log.verified_at,
+          action: log.action || 'Credential Verification',
+          result: log.result || (log.success === true ? 'success' : log.success === false ? 'failure' : 'unknown'),
+          summary: summary,
+          metadata: log.metadata || {
+            duration: log.duration,
+            source: log.source || 'system',
+            host: log.host,
+            verificationType: log.verificationType,
+            ...(typeof log.details === 'object' ? log.details : {})
+          },
+          user: log.user ? {
+            id: log.user.id,
+            name: log.user.name || log.user.email,
+            email: log.user.email
+          } : undefined
+        };
+      });
+      
+      console.log('Transformed logs:', transformedLogs); // Debug logging
       setAuditLogs(transformedLogs);
     } catch (error: any) {
       console.error('Failed to fetch audit logs:', error);
@@ -198,16 +237,24 @@ export const CredentialDetail: React.FC = () => {
     
     setVerifying(true);
     try {
-      const result = await verifyCredential(credential.id);
+      const result = await credentialsApi.verify(credential.id);
+      
+      // Check for success field (boolean) in the API response
+      const isSuccess = result.success === true || result.data?.success === true;
       
       setCredential(prev => prev ? {
         ...prev,
-        verificationStatus: result.status || 'verified',
-        lastVerifiedAt: new Date().toLocaleString(),
-        verificationError: result.error || undefined
+        verificationStatus: isSuccess ? 'verified' : 'failed',
+        lastVerifiedAt: isSuccess ? new Date().toLocaleString() : prev.lastVerifiedAt,
+        verificationError: isSuccess ? undefined : (result.error || result.message || 'Verification failed')
       } : null);
       
-      toast.success('Verification completed successfully');
+      if (isSuccess) {
+        toast.success('Verification completed successfully');
+      } else {
+        toast.error(`Verification failed: ${result.error || result.message || 'Unknown error'}`);
+      }
+      
       await fetchAuditLogs(); // Refresh audit logs
     } catch (error: any) {
       console.error('Verification failed:', error);
@@ -233,7 +280,7 @@ export const CredentialDetail: React.FC = () => {
     try {
       // Note: Using CPM verify endpoint for rotation process
       // You may need to add a specific rotation endpoint to your backend
-      await verifyCredential(credential.id);
+      await credentialsApi.verify(credential.id);
       toast.success('Password rotation process initiated successfully');
       
       // Refresh credential and audit logs
@@ -268,17 +315,9 @@ export const CredentialDetail: React.FC = () => {
     
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/v1/credentials/${credential.id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-      });
-
-      if (res.ok) {
-        toast.success(`"${credential.name}" deleted successfully`);
-        navigate('/vault');
-      } else {
-        throw new Error(`Failed to delete credential: ${res.status}`);
-      }
+      await credentialsApi.delete(credential.id);
+      toast.success(`"${credential.name}" deleted successfully`);
+      navigate('/vault');
     } catch (err: any) {
       console.error('Delete error:', err);
       toast.error(`Failed to delete credential: ${err.message}`);
@@ -435,6 +474,79 @@ export const CredentialDetail: React.FC = () => {
               </div>
             </div>
           </Card>
+
+          {/* Connection Information - for database credentials */}
+          {(credential.type === 'database' || 
+            credential.type === 'mysql' || 
+            credential.type === 'postgresql' || 
+            credential.type === 'mssql' || 
+            credential.type === 'oracle' || 
+            credential.type === 'mongodb') && (
+            <Card>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Connection Information</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {credential.host && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Host</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{credential.host}</p>
+                  </div>
+                )}
+                
+                {credential.port && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Port</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{credential.port}</p>
+                  </div>
+                )}
+                
+                {credential.database_name && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Database Name</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{credential.database_name}</p>
+                  </div>
+                )}
+                
+                {credential.schema_name && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Schema</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{credential.schema_name}</p>
+                  </div>
+                )}
+                
+                {credential.ssl_enabled !== undefined && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">SSL Enabled</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">
+                      {credential.ssl_enabled ? 'Yes' : 'No'}
+                    </p>
+                  </div>
+                )}
+                
+                {credential.connection_string && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Connection String</label>
+                    <div className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg font-mono break-all">
+                      {credential.connection_string}
+                    </div>
+                  </div>
+                )}
+                
+                {credential.additional_params && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Additional Parameters</label>
+                    <div className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">
+                      <pre className="whitespace-pre-wrap">
+                        {typeof credential.additional_params === 'string' 
+                          ? credential.additional_params 
+                          : JSON.stringify(credential.additional_params, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Audit Logs */}
           <AuditLogList 

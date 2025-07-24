@@ -29,7 +29,7 @@ interface Account {
   id: string;
   user_id: string;
   name: string;
-  system_type: 'Windows' | 'Linux' | 'Oracle DB' | 'SQL Server' | 'MySQL' | 'AWS' | 'Azure' | 'Unix/AIX' | 'Network Device' | 'Security Appliance' | 'Application' | 'Website';
+  system_type: 'Windows' | 'Linux' | 'oracle' | 'mssql' | 'mysql' | 'postgresql' | 'mongodb' | 'AWS' | 'Azure' | 'Unix/AIX' | 'Network Device' | 'Security Appliance' | 'Application' | 'Website';
   hostname: string;
   port?: number;
   connection_method: 'RDP' | 'SSH' | 'SQL' | 'HTTPS' | 'HTTP' | 'Oracle' | 'MySQL' | 'PostgreSQL' | 'MongoDB' | 'Custom';
@@ -70,12 +70,16 @@ const getSystemTypeIcon = (type: Account['system_type']) => {
       return <Shield className="w-4 h-4 text-blue-500" />;
     case 'Linux':
       return <Monitor className="w-4 h-4 text-orange-500" />;
-    case 'Oracle DB':
+    case 'oracle':
       return <Database className="w-4 h-4 text-red-500" />;
-    case 'SQL Server':
+    case 'mssql':
       return <Database className="w-4 h-4 text-blue-600" />;
-    case 'MySQL':
+    case 'mysql':
       return <Database className="w-4 h-4 text-orange-600" />;
+    case 'postgresql':
+      return <Database className="w-4 h-4 text-blue-700" />;
+    case 'mongodb':
+      return <Database className="w-4 h-4 text-green-600" />;
     case 'AWS':
       return <Globe className="w-4 h-4 text-yellow-500" />;
     case 'Azure':

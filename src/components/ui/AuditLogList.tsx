@@ -150,11 +150,13 @@ export const AuditLogList: React.FC<AuditLogListProps> = ({
                         />
                       </div>
                       
-                      <p className="text-sm text-gray-600 mb-2">{log.summary}</p>
+                      <p className="text-sm text-gray-600 mb-2">
+                        {typeof log.summary === 'string' ? log.summary : JSON.stringify(log.summary)}
+                      </p>
                       
                       {log.metadata?.reason && (
                         <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded border">
-                          <strong>Reason:</strong> {log.metadata.reason}
+                          <strong>Reason:</strong> {typeof log.metadata.reason === 'string' ? log.metadata.reason : JSON.stringify(log.metadata.reason)}
                         </div>
                       )}
                     </div>

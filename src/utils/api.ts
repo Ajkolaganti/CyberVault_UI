@@ -654,6 +654,77 @@ export const accountsApi = {
       method: 'GET',
     });
   },
+
+  getValidationHistory: async (accountId: string) => {
+    return await cachedApiRequest(`/accounts/${accountId}/validation-history`, {
+      method: 'GET',
+    });
+  },
+};
+
+// Credentials API
+export const credentialsApi = {
+  list: async () => {
+    return await cachedApiRequest('/credentials', {
+      method: 'GET',
+    });
+  },
+
+  create: async (credentialData: any) => {
+    clearApiCache('/credentials');
+    return await apiRequest('/credentials', {
+      method: 'POST',
+      body: JSON.stringify(credentialData),
+    });
+  },
+
+  update: async (credentialId: string, credentialData: any) => {
+    clearApiCache('/credentials');
+    clearApiCache(`/credentials/${credentialId}`);
+    return await apiRequest(`/credentials/${credentialId}`, {
+      method: 'PUT',
+      body: JSON.stringify(credentialData),
+    });
+  },
+
+  delete: async (credentialId: string) => {
+    clearApiCache('/credentials');
+    clearApiCache(`/credentials/${credentialId}`);
+    return await apiRequest(`/credentials/${credentialId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  get: async (credentialId: string) => {
+    return await cachedApiRequest(`/credentials/${credentialId}`, {
+      method: 'GET',
+    });
+  },
+
+  verify: async (credentialId: string) => {
+    return await apiRequest(`/credentials/${credentialId}/verify`, {
+      method: 'POST',
+    });
+  },
+
+  getHistory: async (credentialId: string) => {
+    return await cachedApiRequest(`/credentials/${credentialId}/history`, {
+      method: 'GET',
+    });
+  },
+
+  verifyMultiple: async (credentialIds: string[]) => {
+    return await apiRequest('/credentials/verify-multiple', {
+      method: 'POST',
+      body: JSON.stringify({ credential_ids: credentialIds }),
+    });
+  },
+
+  verifyAll: async () => {
+    return await apiRequest('/credentials/verify-all', {
+      method: 'POST',
+    });
+  },
 };
 
 // Safes API

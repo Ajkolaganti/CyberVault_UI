@@ -27,7 +27,7 @@ interface Account {
   id: string;
   user_id: string;
   name: string;
-  system_type: 'Windows' | 'Linux' | 'Oracle DB' | 'SQL Server' | 'MySQL' | 'AWS' | 'Azure' | 'Unix/AIX' | 'Network Device' | 'Security Appliance' | 'Application' | 'Website';
+  system_type: 'Windows' | 'Linux' | 'oracle' | 'mssql' | 'mysql' | 'postgresql' | 'mongodb' | 'AWS' | 'Azure' | 'Unix/AIX' | 'Network Device' | 'Security Appliance' | 'Application' | 'Website';
   hostname: string;
   port?: number;
   connection_method: 'RDP' | 'SSH' | 'SQL' | 'HTTPS' | 'HTTP' | 'Oracle' | 'MySQL' | 'PostgreSQL' | 'MongoDB' | 'Custom';
@@ -101,9 +101,11 @@ export const AccountCard: React.FC<AccountCardProps> = ({
 
   const getSystemIcon = (type: Account['system_type']) => {
     switch (type) {
-      case 'Oracle DB':
-      case 'SQL Server':
-      case 'MySQL':
+      case 'oracle':
+      case 'mssql':
+      case 'mysql':
+      case 'postgresql':
+      case 'mongodb':
         return <Database className="w-5 h-5 text-blue-500" />;
       case 'Windows':
       case 'Linux':

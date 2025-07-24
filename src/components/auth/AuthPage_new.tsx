@@ -53,6 +53,10 @@ export const AuthPage: React.FC = () => {
     }
   };
 
+  const handleGoogleSignIn = () => {
+    toast.error('Google sign-in not implemented yet');
+  };
+
   const handleResetPassword = () => {
     toast.success('Password reset link sent to your email');
   };
@@ -65,24 +69,17 @@ export const AuthPage: React.FC = () => {
     // You can create a separate SignUpPage component or extend the current one
     // For now, let's show a simple message
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-        <div className="max-w-md w-full bg-white/80 dark:bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200/50 dark:border-slate-700/50 p-8">
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-              Sign Up Feature Coming Soon
-            </h2>
-            <p className="text-slate-600 dark:text-slate-400">
-              We're working on the sign-up functionality. Please contact your administrator for account creation.
-            </p>
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-md p-8">
+          <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-6">
+            Sign Up Feature Coming Soon
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
+            We're working on the sign-up functionality. Please contact your administrator for account creation.
+          </p>
           <button
             onClick={() => setIsSignUp(false)}
-            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl hover:shadow-blue-500/25 transform hover:-translate-y-0.5"
+            className="w-full bg-violet-600 hover:bg-violet-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
             Back to Sign In
           </button>
@@ -94,13 +91,15 @@ export const AuthPage: React.FC = () => {
   return (
     <SignInPage
       title={
-        <span className="font-light text-slate-900 dark:text-white tracking-tighter">
-          Welcome to <span className="font-semibold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">CyberVault</span>
+        <span className="font-light text-gray-900 dark:text-white tracking-tighter">
+          Welcome to <span className="font-semibold text-violet-600">CyberVault</span>
         </span>
       }
       description="Secure credential management for modern organizations"
+      heroImageSrc="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=2160&q=80"
       testimonials={sampleTestimonials}
       onSignIn={handleSignIn}
+      onGoogleSignIn={handleGoogleSignIn}
       onResetPassword={handleResetPassword}
       onCreateAccount={handleCreateAccount}
     />

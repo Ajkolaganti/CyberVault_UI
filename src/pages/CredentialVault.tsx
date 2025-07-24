@@ -11,9 +11,7 @@ import { AuditLogList, AuditLog } from '../components/ui/AuditLogList';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { getAuthHeaders } from '../store/authStore';
 import { 
-  verifyCredential, 
-  getCredentialHistory,
-  verifyMultipleCredentials
+  credentialsApi
 } from '../utils/api';
 import {
   Key,
@@ -248,23 +246,31 @@ export const CredentialVault: React.FC = () => {
     setVerifyingCredentials(prev => new Set(prev).add(credential.id));
     
     try {
-      const result = await verifyCredential(credential.id);
+      const result = await credentialsApi.verify(credential.id);
+      console.log('API response data:', result); // Keep for debugging
+      
+      // Check for success field (boolean) in the API response
+      const isSuccess = result.success === true || result.data?.success === true;
       
       // Update the credential with new verification status
       setCredentials(prev => prev.map(c => 
         c.id === credential.id 
           ? { 
               ...c, 
-              status: result.status === 'success' ? 'verified' : 'failed',
-              verified_at: result.status === 'success' ? new Date().toISOString() : undefined,
+              status: isSuccess ? 'verified' : 'failed',
+              verified_at: isSuccess ? new Date().toISOString() : undefined,
               last_verification_attempt: new Date().toISOString(),
-              verification_error: result.error || undefined,
-              verificationStatus: result.status === 'success' ? 'verified' : 'failed'
+              verification_error: isSuccess ? undefined : (result.error || result.message || 'Verification failed'),
+              verificationStatus: isSuccess ? 'verified' : 'failed'
             }
           : c
       ));
       
-      toast.success(`Verification completed for "${credential.name}"`);
+      if (isSuccess) {
+        toast.success(`Verification successful for "${credential.name}"`);
+      } else {
+        toast.error(`Verification failed for "${credential.name}": ${result.error || result.message || 'Unknown error'}`);
+      }
       
       // Refresh verification history if we're viewing this credential
       if (viewingCredential?.id === credential.id) {
@@ -308,7 +314,7 @@ export const CredentialVault: React.FC = () => {
     try {
       // Note: Using CPM verify endpoint as rotation might be part of verification process
       // You may need to add a specific rotation endpoint to your backend
-      await verifyCredential(rotatingCredential.id);
+      await credentialsApi.verify(rotatingCredential.id);
       toast.success(`Rotation process initiated for "${rotatingCredential.name}"`);
       
       // Refresh credentials to get updated status
@@ -327,7 +333,7 @@ export const CredentialVault: React.FC = () => {
   const fetchCredentialHistory = async (credentialId: string) => {
     setAuditLoading(true);
     try {
-      const result = await getCredentialHistory(credentialId);
+      const result = await credentialsApi.getHistory(credentialId);
       
       // Transform CPM history data to audit log format
       const transformedLogs: AuditLog[] = (result.history || result.data || []).map((entry: any) => ({

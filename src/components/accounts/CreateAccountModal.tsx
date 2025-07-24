@@ -38,9 +38,12 @@ interface CreateAccountModalProps {
 const systemTypes = [
   { value: 'Windows', label: 'Windows', icon: Shield, color: 'bg-blue-500' },
   { value: 'Linux', label: 'Linux', icon: Terminal, color: 'bg-orange-500' },
-  { value: 'Oracle DB', label: 'Oracle DB', icon: Database, color: 'bg-red-500' },
-  { value: 'SQL Server', label: 'SQL Server', icon: Database, color: 'bg-blue-600' },
-  { value: 'MySQL', label: 'MySQL', icon: Database, color: 'bg-orange-600' },
+  { value: 'oracle', label: 'Oracle DB', icon: Database, color: 'bg-red-500' },
+  { value: 'mssql', label: 'SQL Server', icon: Database, color: 'bg-blue-600' },
+  { value: 'mysql', label: 'MySQL', icon: Database, color: 'bg-orange-600' },
+  { value: 'postgresql', label: 'PostgreSQL', icon: Database, color: 'bg-blue-700' },
+  { value: 'mysql', label: 'MariaDB', icon: Database, color: 'bg-teal-600' },
+  { value: 'mongodb', label: 'MongoDB', icon: Database, color: 'bg-green-600' },
   { value: 'AWS', label: 'AWS', icon: Cloud, color: 'bg-yellow-500' },
   { value: 'Azure', label: 'Azure', icon: Cloud, color: 'bg-blue-400' },
   { value: 'Unix/AIX', label: 'Unix/AIX', icon: Server, color: 'bg-gray-600' },
@@ -80,6 +83,11 @@ const connectionMethods = [
     platform_id: '',
     safe_id: '', // Changed from safe_name to safe_id for backend
     connection_method: 'RDP', // Default connection method
+    database_name: '', // Added for database connections
+    schema_name: '', // For PostgreSQL/Oracle
+    connection_string: '', // Optional full connection string
+    ssl_enabled: false, // SSL/TLS enabled flag
+    additional_params: '{}', // Extra connection parameters as JSON string
     // account_type: 'Local'  // Commented out - column not found in schema
   });
 
@@ -140,8 +148,41 @@ const connectionMethods = [
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    if (error) setError(null);
+  };
+
+  const isDatabaseSystem = (systemType: string) => {
+    return ['oracle', 'mssql', 'mysql', 'postgresql', 'mongodb'].includes(systemType);
+  };
+
+  const requiresSchema = (systemType: string) => {
+    return ['postgresql', 'oracle'].includes(systemType);
+  };
+
+  const getDefaultPort = (systemType: string) => {
+    const portMap: { [key: string]: string } = {
+      'mysql': '3306',
+      'postgresql': '5432',
+      'mssql': '1433',
+      'oracle': '1521',
+      'mongodb': '27017',
+    };
+    return portMap[systemType] || '';
+  };
+
+  // Auto-set port when system type changes
+  const handleSystemTypeChange = (value: string) => {
+    const newFormData = { ...formData, system_type: value };
+    
+    // Auto-set default port for database systems
+    if (isDatabaseSystem(value)) {
+      newFormData.port = getDefaultPort(value);
+      newFormData.connection_method = 'SQL';
+    }
+    
+    setFormData(newFormData);
     if (error) setError(null);
   };
 
@@ -170,6 +211,37 @@ const connectionMethods = [
       setError('Please select a safe for this account');
       return false;
     }
+    // Validate database name for database systems
+    if (isDatabaseSystem(formData.system_type) && !formData.database_name.trim()) {
+      setError('Database name is required for database connections');
+      return false;
+    }
+
+    // Validate schema name for systems that require it
+    if (requiresSchema(formData.system_type) && !formData.schema_name.trim()) {
+      setError('Schema name is required for PostgreSQL and Oracle databases');
+      return false;
+    }
+
+    // Validate additional_params JSON format if provided
+    if (formData.additional_params.trim() && formData.additional_params !== '{}') {
+      try {
+        JSON.parse(formData.additional_params);
+      } catch (e) {
+        setError('Additional parameters must be valid JSON format');
+        return false;
+      }
+    }
+
+    // Validate connection string format if provided
+    if (formData.connection_string.trim()) {
+      const connectionStringPattern = /^[a-zA-Z]+:\/\/.+/;
+      if (!connectionStringPattern.test(formData.connection_string)) {
+        setError('Connection string must be a valid URI format (e.g., postgresql://user:pass@host:port/db)');
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -185,7 +257,11 @@ const connectionMethods = [
     const dataToSend = {
       ...formData,
       // Explicitly ensure name is included and not empty
-      name: formData.name.trim()
+      name: formData.name.trim(),
+      // Parse additional_params JSON if provided
+      additional_params: formData.additional_params.trim() ? JSON.parse(formData.additional_params) : {},
+      // Ensure SSL flag is boolean
+      ssl_enabled: Boolean(formData.ssl_enabled),
     };
 
     try {
@@ -210,6 +286,11 @@ const connectionMethods = [
         platform_id: '',
         safe_id: '', // Changed from safe_name to safe_id for backend
         connection_method: 'RDP', // Default connection method
+        database_name: '', // Added for database connections
+        schema_name: '', // For PostgreSQL/Oracle
+        connection_string: '', // Optional full connection string
+        ssl_enabled: false, // SSL/TLS enabled flag
+        additional_params: '{}', // Extra connection parameters as JSON string
         // account_type: 'Local'  // Commented out - column not found in schema
       });
       
@@ -360,7 +441,7 @@ const connectionMethods = [
                 </Label>
                 <Select 
                   value={formData.system_type} 
-                  onValueChange={(value) => handleInputChange('system_type', value)}
+                  onValueChange={handleSystemTypeChange}
                   disabled={loading}
                 >
                   <SelectTrigger className="mt-2">
@@ -443,6 +524,112 @@ const connectionMethods = [
               </div>
             </div>
           </div>
+
+          {/* Database Configuration Section - Show only for database systems */}
+          {isDatabaseSystem(formData.system_type) && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-2">
+                <Database className="h-5 w-5 text-slate-700" />
+                <h3 className="text-lg font-semibold text-slate-900">Database Configuration</h3>
+              </div>
+              <Separator />
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                  <Label htmlFor="database_name" className="text-slate-700 font-medium">
+                    Database Name *
+                  </Label>
+                  <Input
+                    id="database_name"
+                    value={formData.database_name}
+                    onChange={(e) => handleInputChange('database_name', e.target.value)}
+                    placeholder="e.g., production_db, hr_system"
+                    required={isDatabaseSystem(formData.system_type)}
+                    disabled={loading}
+                    className="mt-2"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    The name of the database to connect to
+                  </p>
+                </div>
+
+                {requiresSchema(formData.system_type) && (
+                  <div>
+                    <Label htmlFor="schema_name" className="text-slate-700 font-medium">
+                      Schema Name *
+                    </Label>
+                    <Input
+                      id="schema_name"
+                      value={formData.schema_name}
+                      onChange={(e) => handleInputChange('schema_name', e.target.value)}
+                      placeholder="e.g., public, hr_schema"
+                      required={requiresSchema(formData.system_type)}
+                      disabled={loading}
+                      className="mt-2"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      Required for PostgreSQL and Oracle databases
+                    </p>
+                  </div>
+                )}
+
+                <div className="lg:col-span-2">
+                  <Label htmlFor="connection_string" className="text-slate-700 font-medium">
+                    Connection String (Optional)
+                  </Label>
+                  <Textarea
+                    id="connection_string"
+                    value={formData.connection_string}
+                    onChange={(e) => handleInputChange('connection_string', e.target.value)}
+                    placeholder="postgresql://user:pass@host:5432/dbname?sslmode=require"
+                    disabled={loading}
+                    rows={3}
+                    className="mt-2 resize-none"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Full connection string (will override individual host/port/database settings)
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex items-center space-x-2 mt-2">
+                    <input
+                      type="checkbox"
+                      id="ssl_enabled"
+                      checked={formData.ssl_enabled}
+                      onChange={(e) => handleInputChange('ssl_enabled', e.target.checked)}
+                      disabled={loading}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <Label htmlFor="ssl_enabled" className="text-slate-700 font-medium">
+                      Enable SSL/TLS
+                    </Label>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Use encrypted connection to the database
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="additional_params" className="text-slate-700 font-medium">
+                    Additional Parameters (JSON)
+                  </Label>
+                  <Textarea
+                    id="additional_params"
+                    value={formData.additional_params}
+                    onChange={(e) => handleInputChange('additional_params', e.target.value)}
+                    placeholder='{"timeout": 30, "pool_size": 10}'
+                    disabled={loading}
+                    rows={3}
+                    className="mt-2 resize-none font-mono text-sm"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Extra connection parameters as valid JSON (optional)
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Organization Section */}
           <div className="space-y-6">
