@@ -12,7 +12,7 @@ import {
   ScanSettingsModal,
   DiscoveryStatistics
 } from '../components/discovery';
-import { discoveryApi, clearApiCache } from '../utils/api';
+import { discoveryApi, clearApiCache, startKeepAlive, stopKeepAlive, handleDeployedEnvironmentError } from '../utils/api';
 import toast from 'react-hot-toast';
 import {
   Search,
@@ -43,7 +43,7 @@ export interface DiscoveryScan {
   id: string;
   target_id: string;
   target_name?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'in_progress' | 'started' | 'active';
   settings: Record<string, any>;
   metadata: Record<string, any> & {
     accounts_discovered?: number;
@@ -101,6 +101,8 @@ export const Discovery: React.FC = () => {
   // Real-time polling refs
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingActiveRef = useRef(false);
+  const forcedPollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScanStartTimeRef = useRef<number | null>(null);
 
   // Data states
   const [targets, setTargets] = useState<DiscoveryTarget[]>([]);
@@ -156,7 +158,18 @@ export const Discovery: React.FC = () => {
       setLastScanCount(newScans.length);
     } catch (error) {
       console.error('Error fetching discovery scans:', error);
-      setError('Failed to load discovery scans');
+      
+      // Handle deployed environment errors (Render wake-up issues)
+      try {
+        await handleDeployedEnvironmentError(error, '/discovery/scans', async () => {
+          const retryResponse = await discoveryApi.scans.list(undefined, 50, 0);
+          console.log('Retry scans response:', retryResponse);
+          setScans(retryResponse.data || []);
+          return retryResponse;
+        });
+      } catch (retryError) {
+        setError('Failed to load discovery scans - backend may be starting up, please try again in a moment');
+      }
     }
   };
 
@@ -237,6 +250,14 @@ export const Discovery: React.FC = () => {
   // Load data on component mount
   useEffect(() => {
     fetchAllData();
+    
+    // Start keep-alive mechanism for deployed environments
+    startKeepAlive();
+    
+    // Cleanup on unmount
+    return () => {
+      stopKeepAlive();
+    };
   }, []);
 
   // Real-time polling for active scans
@@ -248,7 +269,11 @@ export const Discovery: React.FC = () => {
       try {
         // Only poll if there are running scans
         const hasRunningScans = scans.some(scan => 
-          scan.status === 'running' || scan.status === 'pending'
+          scan.status === 'running' || 
+          scan.status === 'pending' || 
+          scan.status === 'in_progress' || 
+          scan.status === 'started' ||
+          scan.status === 'active'
         );
         
         if (hasRunningScans) {
@@ -258,6 +283,7 @@ export const Discovery: React.FC = () => {
           await fetchStatistics();
         } else {
           // Stop polling if no active scans
+          console.log('No active scans found during polling, stopping...');
           stopPolling();
         }
       } catch (error) {
@@ -271,20 +297,48 @@ export const Discovery: React.FC = () => {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
+    if (forcedPollingTimeoutRef.current) {
+      clearTimeout(forcedPollingTimeoutRef.current);
+      forcedPollingTimeoutRef.current = null;
+    }
     isPollingActiveRef.current = false;
+    console.log('Polling stopped');
   }, []);
 
   // Start/stop polling based on scan status
   useEffect(() => {
+    // Debug logging to see scan statuses
+    console.log('Checking scans for active status:', scans.map(scan => ({ 
+      id: scan.id, 
+      status: scan.status,
+      target: scan.target_name || scan.target_id,
+      started_at: scan.started_at,
+      completed_at: scan.completed_at
+    })));
+    
     const hasRunningScans = scans.some(scan => 
-      scan.status === 'running' || scan.status === 'pending'
+      scan.status === 'running' || 
+      scan.status === 'pending' || 
+      scan.status === 'in_progress' || 
+      scan.status === 'started' ||
+      scan.status === 'active'
     );
     
-    if (hasRunningScans && !isPollingActiveRef.current) {
+    // Also check if we're within 2 minutes of starting a scan
+    const isWithinForcePollingWindow = lastScanStartTimeRef.current && 
+      (Date.now() - lastScanStartTimeRef.current) < 120000; // 2 minutes
+    
+    const shouldPoll = hasRunningScans || isWithinForcePollingWindow;
+    
+    console.log('Has running scans:', hasRunningScans);
+    console.log('Within force polling window:', isWithinForcePollingWindow);
+    console.log('Should poll:', shouldPoll);
+    
+    if (shouldPoll && !isPollingActiveRef.current) {
       console.log('Starting real-time polling for active scans');
       startPolling();
-    } else if (!hasRunningScans && isPollingActiveRef.current) {
-      console.log('Stopping polling - no active scans');
+    } else if (!shouldPoll && isPollingActiveRef.current) {
+      console.log('Stopping polling - no active scans and outside force window');
       stopPolling();
     }
   }, [scans, startPolling, stopPolling]);
@@ -334,21 +388,44 @@ export const Discovery: React.FC = () => {
       
       toast.success('Discovery scan started successfully');
       
+      // Record scan start time for forced polling
+      lastScanStartTimeRef.current = Date.now();
+      
       // Fetch scans immediately to show the new scan
       console.log('Fetching scans after starting...');
       await fetchScans();
       
-      // Start polling for real-time updates
-      setTimeout(() => {
-        console.log('Starting polling for scan updates...');
-        startPolling();
-      }, 1000); // Small delay to ensure scan is registered
+      // Force start polling for at least 2 minutes to catch the scan
+      console.log('Starting forced polling for scan updates...');
+      isPollingActiveRef.current = false; // Reset to allow startPolling to work
+      startPolling();
       
       setShowScanSettingsModal(false);
       setSelectedTargetForScan(null);
     } catch (error: any) {
       console.error('Error starting scan:', error);
-      toast.error(error.message || 'Failed to start discovery scan');
+      
+      // Handle deployed environment errors for scan start
+      try {
+        await handleDeployedEnvironmentError(error, `/discovery/targets/${targetId}/scan`, async () => {
+          console.log('Retrying scan start after potential wake-up...');
+          const retryResult = await discoveryApi.scans.start(targetId, scanSettings);
+          console.log('Retry scan start result:', retryResult);
+          
+          toast.success('Discovery scan started successfully (after retry)');
+          lastScanStartTimeRef.current = Date.now();
+          await fetchScans();
+          isPollingActiveRef.current = false;
+          startPolling();
+          
+          return retryResult;
+        });
+        
+        setShowScanSettingsModal(false);
+        setSelectedTargetForScan(null);
+      } catch (retryError) {
+        toast.error('Failed to start discovery scan - backend may be starting up, please try again in a moment');
+      }
     } finally {
       setLoading(false);
     }

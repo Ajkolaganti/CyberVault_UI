@@ -150,11 +150,18 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
     logRequestRate(endpoint);
   }
   
+  // Increase timeout for deployed environments (Render wake-up time)
+  const timeoutMs = import.meta.env.DEV ? 10000 : 60000; // 10s local, 60s deployed
+  
   const defaultOptions: RequestInit = {
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      // Add cache-control headers to prevent stale data in deployed env
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
     },
     credentials: 'include',
     ...options,
@@ -164,11 +171,20 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
   console.log('Request options:', defaultOptions);
 
   try {
-    const response = await retryWithBackoff(
+    // Create a timeout promise for deployed environments
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Request timeout after ${timeoutMs}ms - this may be due to backend cold start`));
+      }, timeoutMs);
+    });
+
+    const fetchPromise = retryWithBackoff(
       () => fetch(url, defaultOptions),
-      3, // max retries
-      1000 // base delay (1 second)
+      import.meta.env.DEV ? 3 : 5, // More retries in deployed environment
+      import.meta.env.DEV ? 1000 : 2000 // Longer delays in deployed environment
     );
+
+    const response = await Promise.race([fetchPromise, timeoutPromise]);
     
     console.log(`Response status: ${response.status}`);
     console.log('Response headers:', Object.fromEntries(response.headers.entries()));
@@ -180,6 +196,9 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
       if (response.status === 429) {
         const retryAfter = response.headers.get('Retry-After');
         errorMessage = `Rate limit exceeded. ${retryAfter ? `Please try again in ${retryAfter} seconds.` : 'Please try again later.'}`;
+      } else if (response.status === 503 || response.status === 502) {
+        // Common Render wake-up error codes
+        errorMessage = `Service temporarily unavailable - backend may be starting up. Please try again in a moment.`;
       } else {
         try {
           // Check if response is JSON before trying to parse
@@ -1142,4 +1161,74 @@ export const discoveryApi = {
       method: 'GET',
     });
   },
+};
+
+// Keep-alive mechanism for deployed environments to prevent Render service sleep
+let keepAliveInterval: NodeJS.Timeout | null = null;
+
+export const startKeepAlive = () => {
+  // Only run keep-alive in production (deployed environment)
+  if (import.meta.env.DEV) return;
+  
+  if (keepAliveInterval) return; // Already running
+  
+  console.log('Starting keep-alive mechanism for deployed environment');
+  
+  // Ping health endpoint every 10 minutes to keep Render service awake
+  keepAliveInterval = setInterval(async () => {
+    try {
+      console.log('Keep-alive ping...');
+      await fetch('/api/v1/health', { 
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
+      });
+    } catch (error) {
+      console.warn('Keep-alive ping failed:', error);
+    }
+  }, 10 * 60 * 1000); // 10 minutes
+};
+
+export const stopKeepAlive = () => {
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = null;
+    console.log('Stopped keep-alive mechanism');
+  }
+};
+
+// Enhanced error handling for deployed environments
+export const handleDeployedEnvironmentError = async (error: any, endpoint: string, retryFn: () => Promise<any>) => {
+  console.warn(`Deployed environment error for ${endpoint}:`, error);
+  
+  // If it's a timeout or service unavailable error, try to wake up the service
+  if (error.message?.includes('timeout') || 
+      error.message?.includes('503') || 
+      error.message?.includes('502') ||
+      error.message?.includes('ECONNRESET')) {
+    
+    console.log('Attempting to wake up backend service...');
+    
+    try {
+      // Try a simple health check first to wake up the service
+      await fetch('/api/v1/health', { 
+        method: 'GET',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      
+      // Wait a bit for the service to fully wake up
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Retry the original request
+      console.log('Retrying original request after wake-up...');
+      return await retryFn();
+      
+    } catch (wakeUpError) {
+      console.error('Failed to wake up service:', wakeUpError);
+      throw error; // Throw the original error
+    }
+  }
+  
+  throw error; // Re-throw if not a wake-up scenario
 };

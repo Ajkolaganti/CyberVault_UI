@@ -149,7 +149,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       
-      signUp: async (email: string, password: string, role: string = 'user') => {
+      signUp: async (email: string, password: string, role: string = 'User') => {
         set({ loading: true });
         try {
           console.log('Attempting registration with email:', email, 'role:', role);
@@ -183,6 +183,13 @@ export const useAuthStore = create<AuthState>()(
                 errorMessage = `Validation errors: ${validationErrors}`;
               } else {
                 errorMessage = errorData.message || errorMessage;
+                
+                // Special handling for email confirmation errors
+                // These might happen even if user creation was successful
+                if (errorMessage.toLowerCase().includes('confirmation email') || 
+                    errorMessage.toLowerCase().includes('sending')) {
+                  console.warn('Email confirmation failed, but user might be created');
+                }
               }
             } else {
               const textError = await response.text();
