@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
 import toast from 'react-hot-toast';
 
 export const LoginForm: React.FC = () => {
@@ -45,23 +44,37 @@ export const LoginForm: React.FC = () => {
 
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Input
-              label="Email address"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              error={errors.email}
-              className="bg-white/20 border-white/30 text-white placeholder-gray-300"
-            />
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Email address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-gray-900 placeholder-gray-500 focus:bg-white ${
+                  errors.email ? 'border-red-500 focus:ring-red-500' : 'border-white/50'
+                }`}
+                placeholder="Enter your email"
+              />
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-400">{errors.email}</p>
+              )}
+            </div>
 
-            <Input
-              label="Password"
-              secure
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              error={errors.password}
-              className="bg-white/20 border-white/30 text-white placeholder-gray-300"
-            />
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-gray-900 placeholder-gray-500 focus:bg-white ${
+                  errors.password ? 'border-red-500 focus:ring-red-500' : 'border-white/50'
+                }`}
+                placeholder="Enter your password"
+              />
+              {errors.password && (
+                <p className="mt-1 text-sm text-red-400">{errors.password}</p>
+              )}
+            </div>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center">

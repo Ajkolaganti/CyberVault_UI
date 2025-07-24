@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { Shield, Lock, Mail, User, AlertCircle, CheckCircle } from 'lucide-react';
@@ -178,65 +177,83 @@ export const AuthPage: React.FC = () => {
               {/* Name field for signup */}
               {isSignUp && (
                 <div className="space-y-2">
+                  <label className="block text-sm font-medium text-white">Full Name</label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <Input
-                      label="Full Name"
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
+                    <input
+                      type="text"
                       value={name}
                       onChange={(e) => handleInputChange('name', e.target.value)}
-                      error={errors.name}
-                      className="pl-12 bg-white/20 border-white/30 text-white placeholder-gray-300"
+                      className={`w-full pl-12 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-gray-900 placeholder-gray-500 focus:bg-white ${
+                        errors.name ? 'border-red-500 focus:ring-red-500' : 'border-white/50'
+                      }`}
                       placeholder="Enter your full name"
                     />
+                    {errors.name && (
+                      <p className="mt-1 text-sm text-red-400">{errors.name}</p>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Email field */}
               <div className="space-y-2">
+                <label className="block text-sm font-medium text-white">Email Address</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    label="Email Address"
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
+                  <input
                     type="email"
                     value={email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
-                    error={errors.email}
-                    className="pl-12 bg-white/20 border-white/30 text-white placeholder-gray-300"
+                    className={`w-full pl-12 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-gray-900 placeholder-gray-500 focus:bg-white ${
+                      errors.email ? 'border-red-500 focus:ring-red-500' : 'border-white/50'
+                    }`}
                     placeholder="Enter your email address"
                   />
+                  {errors.email && (
+                    <p className="mt-1 text-sm text-red-400">{errors.email}</p>
+                  )}
                 </div>
               </div>
 
               {/* Password field */}
               <div className="space-y-2">
+                <label className="block text-sm font-medium text-white">Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    label="Password"
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
+                  <input
                     type="password"
                     value={password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
-                    error={errors.password}                      className="pl-12 bg-white/20 border-white/30 text-white placeholder-gray-300"
-                      placeholder={isSignUp ? "8+ chars: 1 lower, 1 upper, 1 number, 1 symbol" : "Enter your password"}
+                    className={`w-full pl-12 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-gray-900 placeholder-gray-500 focus:bg-white ${
+                      errors.password ? 'border-red-500 focus:ring-red-500' : 'border-white/50'
+                    }`}
+                    placeholder={isSignUp ? "8+ chars: 1 lower, 1 upper, 1 number, 1 symbol" : "Enter your password"}
                   />
+                  {errors.password && (
+                    <p className="mt-1 text-sm text-red-400">{errors.password}</p>
+                  )}
                 </div>
               </div>
 
               {/* Confirm Password field for signup */}
               {isSignUp && (
                 <div className="space-y-2">
+                  <label className="block text-sm font-medium text-white">Confirm Password</label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <Input
-                      label="Confirm Password"
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
+                    <input
                       type="password"
                       value={confirmPassword}
                       onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                      error={errors.confirmPassword}
-                      className="pl-12 bg-white/20 border-white/30 text-white placeholder-gray-300"
+                      className={`w-full pl-12 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-gray-900 placeholder-gray-500 focus:bg-white ${
+                        errors.confirmPassword ? 'border-red-500 focus:ring-red-500' : 'border-white/50'
+                      }`}
                       placeholder="Confirm your password"
                     />
+                    {errors.confirmPassword && (
+                      <p className="mt-1 text-sm text-red-400">{errors.confirmPassword}</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -251,10 +268,10 @@ export const AuthPage: React.FC = () => {
                       <select
                         value={role}
                         onChange={(e) => handleInputChange('role', e.target.value)}
-                        className={`w-full pl-12 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/20 text-white ${
+                        className={`w-full pl-12 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/90 text-gray-900 ${
                           errors.role 
                             ? 'border-red-500 focus:ring-red-500' 
-                            : 'border-white/30'
+                            : 'border-white/50'
                         }`}
                       >
                         <option value="User" className="text-gray-900">User</option>
