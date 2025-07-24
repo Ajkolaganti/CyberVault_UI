@@ -239,20 +239,23 @@ export const CredentialDetail: React.FC = () => {
     try {
       const result = await credentialsApi.verify(credential.id);
       
-      // Check for success field (boolean) in the API response
-      const isSuccess = result.success === true || result.data?.success === true;
+      // Check for success field in the verification data (not the API response)
+      // The API response structure is: { success: true, data: { success: boolean, ... } }
+      // We need to check the data.success field for the actual verification result
+      const isSuccess = result.data?.success === true;
       
       setCredential(prev => prev ? {
         ...prev,
         verificationStatus: isSuccess ? 'verified' : 'failed',
         lastVerifiedAt: isSuccess ? new Date().toLocaleString() : prev.lastVerifiedAt,
-        verificationError: isSuccess ? undefined : (result.error || result.message || 'Verification failed')
+        verificationError: isSuccess ? undefined : (result.data?.error || result.data?.message || result.error || result.message || 'Verification failed')
       } : null);
       
       if (isSuccess) {
         toast.success('Verification completed successfully');
       } else {
-        toast.error(`Verification failed: ${result.error || result.message || 'Unknown error'}`);
+        const errorMessage = result.data?.error || result.data?.message || result.error || result.message || 'Unknown error';
+        toast.error(`Verification failed: ${errorMessage}`);
       }
       
       await fetchAuditLogs(); // Refresh audit logs

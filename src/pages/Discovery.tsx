@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -12,7 +12,7 @@ import {
   ScanSettingsModal,
   DiscoveryStatistics
 } from '../components/discovery';
-import { discoveryApi } from '../utils/api';
+import { discoveryApi, clearApiCache } from '../utils/api';
 import toast from 'react-hot-toast';
 import {
   Search,
@@ -98,11 +98,16 @@ export const Discovery: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Real-time polling refs
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isPollingActiveRef = useRef(false);
+
   // Data states
   const [targets, setTargets] = useState<DiscoveryTarget[]>([]);
   const [scans, setScans] = useState<DiscoveryScan[]>([]);
   const [discoveredAccounts, setDiscoveredAccounts] = useState<DiscoveredAccount[]>([]);
   const [statistics, setStatistics] = useState<DiscoveryStatisticsData | null>(null);
+  const [lastScanCount, setLastScanCount] = useState(0);
 
   // Modal states
   const [showCreateTargetModal, setShowCreateTargetModal] = useState(false);
@@ -132,8 +137,19 @@ export const Discovery: React.FC = () => {
 
   const fetchScans = async () => {
     try {
+      console.log('Fetching discovery scans...');
       const response = await discoveryApi.scans.list(undefined, 50, 0);
-      setScans(response.data || []);
+      console.log('Scans response:', response);
+      const newScans = response.data || [];
+      
+      // Check if there are new scans and notify user
+      if (newScans.length > lastScanCount && lastScanCount > 0) {
+        const newScansCount = newScans.length - lastScanCount;
+        toast.success(`${newScansCount} new scan result${newScansCount !== 1 ? 's' : ''} available`);
+      }
+      
+      setScans(newScans);
+      setLastScanCount(newScans.length);
     } catch (error) {
       console.error('Error fetching discovery scans:', error);
       setError('Failed to load discovery scans');
@@ -181,14 +197,110 @@ export const Discovery: React.FC = () => {
 
   const refreshData = async () => {
     setRefreshing(true);
-    await fetchAllData();
-    setRefreshing(false);
+    
+    // Clear any cached data for discovery endpoints
+    try {
+      // Force fresh data by clearing cache
+      console.log('Force refreshing all discovery data...');
+      clearApiCache('/discovery');
+      await fetchAllData();
+      
+      // If there are running scans, restart polling to ensure real-time updates
+      const hasRunningScans = scans.some(scan => 
+        scan.status === 'running' || scan.status === 'pending'
+      );
+      
+      if (hasRunningScans) {
+        stopPolling();
+        setTimeout(() => startPolling(), 1000);
+      }
+      
+      toast.success('Discovery data refreshed');
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      toast.error('Failed to refresh data');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Load data on component mount
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  // Real-time polling for active scans
+  const startPolling = useCallback(() => {
+    if (isPollingActiveRef.current) return;
+    
+    isPollingActiveRef.current = true;
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        // Only poll if there are running scans
+        const hasRunningScans = scans.some(scan => 
+          scan.status === 'running' || scan.status === 'pending'
+        );
+        
+        if (hasRunningScans) {
+          console.log('Polling for scan updates...');
+          await fetchScans();
+          await fetchDiscoveredAccounts();
+          await fetchStatistics();
+        } else {
+          // Stop polling if no active scans
+          stopPolling();
+        }
+      } catch (error) {
+        console.error('Error during polling:', error);
+      }
+    }, 5000); // Poll every 5 seconds
+  }, [scans]);
+
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    isPollingActiveRef.current = false;
+  }, []);
+
+  // Start/stop polling based on scan status
+  useEffect(() => {
+    const hasRunningScans = scans.some(scan => 
+      scan.status === 'running' || scan.status === 'pending'
+    );
+    
+    if (hasRunningScans && !isPollingActiveRef.current) {
+      console.log('Starting real-time polling for active scans');
+      startPolling();
+    } else if (!hasRunningScans && isPollingActiveRef.current) {
+      console.log('Stopping polling - no active scans');
+      stopPolling();
+    }
+  }, [scans, startPolling, stopPolling]);
+
+  // Auto-refresh when viewing scans tab
+  useEffect(() => {
+    if (activeTab === 'scans') {
+      // Refresh scans data when switching to scans tab
+      fetchScans();
+      
+      // Set up interval to refresh scans data every 10 seconds when viewing scans
+      const interval = setInterval(() => {
+        console.log('Auto-refreshing scans data while viewing scans tab');
+        fetchScans();
+      }, 10000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+
+  // Cleanup polling on component unmount
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, [stopPolling]);
 
   // Handle scan start
   const handleStartScan = async (target: DiscoveryTarget) => {
@@ -200,9 +312,23 @@ export const Discovery: React.FC = () => {
   const handleExecuteScan = async (targetId: string, scanSettings: any) => {
     try {
       setLoading(true);
-      await discoveryApi.scans.start(targetId, scanSettings);
+      console.log('Starting discovery scan for target:', targetId, 'with settings:', scanSettings);
+      
+      const result = await discoveryApi.scans.start(targetId, scanSettings);
+      console.log('Scan start result:', result);
+      
       toast.success('Discovery scan started successfully');
+      
+      // Fetch scans immediately to show the new scan
+      console.log('Fetching scans after starting...');
       await fetchScans();
+      
+      // Start polling for real-time updates
+      setTimeout(() => {
+        console.log('Starting polling for scan updates...');
+        startPolling();
+      }, 1000); // Small delay to ensure scan is registered
+      
       setShowScanSettingsModal(false);
       setSelectedTargetForScan(null);
     } catch (error: any) {
@@ -310,6 +436,12 @@ export const Discovery: React.FC = () => {
           <p className="text-gray-500 mt-1">
             Discover and inventory privileged accounts across your infrastructure
             {refreshing && <span className="text-blue-500"> • Refreshing...</span>}
+            {isPollingActiveRef.current && runningScansCount > 0 && (
+              <span className="text-green-500 flex items-center gap-1 mt-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                Live updates active • {runningScansCount} scan{runningScansCount !== 1 ? 's' : ''} running
+              </span>
+            )}
           </p>
         </div>
         <div className="flex space-x-3">

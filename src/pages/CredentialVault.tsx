@@ -249,8 +249,10 @@ export const CredentialVault: React.FC = () => {
       const result = await credentialsApi.verify(credential.id);
       console.log('API response data:', result); // Keep for debugging
       
-      // Check for success field (boolean) in the API response
-      const isSuccess = result.success === true || result.data?.success === true;
+      // Check for success field in the verification data (not the API response)
+      // The API response structure is: { success: true, data: { success: boolean, ... } }
+      // We need to check the data.success field for the actual verification result
+      const isSuccess = result.data?.success === true;
       
       // Update the credential with new verification status
       setCredentials(prev => prev.map(c => 
@@ -260,7 +262,7 @@ export const CredentialVault: React.FC = () => {
               status: isSuccess ? 'verified' : 'failed',
               verified_at: isSuccess ? new Date().toISOString() : undefined,
               last_verification_attempt: new Date().toISOString(),
-              verification_error: isSuccess ? undefined : (result.error || result.message || 'Verification failed'),
+              verification_error: isSuccess ? undefined : (result.data?.error || result.data?.message || result.error || result.message || 'Verification failed'),
               verificationStatus: isSuccess ? 'verified' : 'failed'
             }
           : c
@@ -269,22 +271,27 @@ export const CredentialVault: React.FC = () => {
       if (isSuccess) {
         toast.success(`Verification successful for "${credential.name}"`);
       } else {
-        toast.error(`Verification failed for "${credential.name}": ${result.error || result.message || 'Unknown error'}`);
+        const errorMessage = result.data?.error || result.data?.message || result.error || result.message || 'Unknown error';
+        toast.error(`Verification failed for "${credential.name}": ${errorMessage}`);
       }
       
       // Refresh verification history if we're viewing this credential
       if (viewingCredential?.id === credential.id) {
         await fetchCredentialHistory(credential.id);
       }
+      
+      // Don't refresh credentials immediately to avoid overriding the local state
+      // The status change should persist in the backend, so it will be correct on next load
     } catch (error: any) {
       console.error('Verification failed:', error);
       
-      // Update credential with failed status
+      // Update credential with error status
       setCredentials(prev => prev.map(c => 
         c.id === credential.id 
           ? { 
               ...c, 
               status: 'failed',
+              verified_at: undefined,
               last_verification_attempt: new Date().toISOString(),
               verification_error: error.message || 'Verification failed',
               verificationStatus: 'failed'
