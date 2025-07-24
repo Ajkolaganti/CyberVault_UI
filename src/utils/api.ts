@@ -1081,7 +1081,8 @@ export const discoveryApi = {
     },
 
     get: async (scanId: string) => {
-      return await cachedApiRequest(`/discovery/scans/${scanId}`, {
+      // Use non-cached request for individual scan details to get real-time data
+      return await apiRequest(`/discovery/scans/${scanId}`, {
         method: 'GET',
       });
     },

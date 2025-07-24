@@ -324,6 +324,11 @@ export const Discovery: React.FC = () => {
       setLoading(true);
       console.log('Starting discovery scan for target:', targetId, 'with settings:', scanSettings);
       
+      // Clear all discovery-related cache before starting scan
+      clearApiCache('/discovery/scans');
+      clearApiCache('/discovery/accounts');
+      clearApiCache('/discovery/statistics');
+      
       const result = await discoveryApi.scans.start(targetId, scanSettings);
       console.log('Scan start result:', result);
       
