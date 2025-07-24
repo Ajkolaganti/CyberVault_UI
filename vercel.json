@@ -1,6 +1,26 @@
 {
   "rewrites": [
     {
+      "source": "/api/v1/auth/login",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/auth/login"
+    },
+    {
+      "source": "/api/v1/auth/register",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/auth/register"
+    },
+    {
+      "source": "/api/v1/auth/logout",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/auth/logout"
+    },
+    {
+      "source": "/api/v1/auth/reset-password",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/auth/reset-password"
+    },
+    {
+      "source": "/api/v1/auth/me",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/auth/me"
+    },
+    {
       "source": "/api/v1/accounts",
       "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/accounts"
     },
@@ -15,6 +35,174 @@
     {
       "source": "/api/v1/accounts/statistics",
       "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/accounts/statistics"
+    },
+    {
+      "source": "/api/v1/credentials",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/credentials"
+    },
+    {
+      "source": "/api/v1/credentials/:id",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/credentials/:id"
+    },
+    {
+      "source": "/api/v1/credentials/:id/verify",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/credentials/:id/verify"
+    },
+    {
+      "source": "/api/v1/credentials/:id/history",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/credentials/:id/history"
+    },
+    {
+      "source": "/api/v1/credentials/verify-multiple",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/credentials/verify-multiple"
+    },
+    {
+      "source": "/api/v1/credentials/verify-all",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/credentials/verify-all"
+    },
+    {
+      "source": "/api/v1/jit",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/jit"
+    },
+    {
+      "source": "/api/v1/jit/:id/approve",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/jit/:id/approve"
+    },
+    {
+      "source": "/api/v1/jit/:id/deny",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/jit/:id/deny"
+    },
+    {
+      "source": "/api/v1/jit/:id/revoke",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/jit/:id/revoke"
+    },
+    {
+      "source": "/api/v1/jit/:id/extend",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/jit/:id/extend"
+    },
+    {
+      "source": "/api/v1/jit/admin/statistics",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/jit/admin/statistics"
+    },
+    {
+      "source": "/api/v1/sessions",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/sessions"
+    },
+    {
+      "source": "/api/v1/sessions/:id",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/sessions/:id"
+    },
+    {
+      "source": "/api/v1/sessions/:id/end",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/sessions/:id/end"
+    },
+    {
+      "source": "/api/v1/sessions/:id/logs",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/sessions/:id/logs"
+    },
+    {
+      "source": "/api/v1/sessions/activity",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/sessions/activity"
+    },
+    {
+      "source": "/api/v1/dashboard/stats",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/dashboard/stats"
+    },
+    {
+      "source": "/api/v1/dashboard/alerts",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/dashboard/alerts"
+    },
+    {
+      "source": "/api/v1/audit",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/audit"
+    },
+    {
+      "source": "/api/v1/validation/stream",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/validation/stream"
+    },
+    {
+      "source": "/api/v1/validation/statistics",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/validation/statistics"
+    },
+    {
+      "source": "/api/v1/validation/recent",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/validation/recent"
+    },
+    {
+      "source": "/api/v1/validation/subscribe",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/validation/subscribe"
+    },
+    {
+      "source": "/api/v1/validation/accounts/status",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/validation/accounts/status"
+    },
+    {
+      "source": "/api/v1/validation/accounts/statistics",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/validation/accounts/statistics"
+    },
+    {
+      "source": "/api/v1/validation/accounts/trigger",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/validation/accounts/trigger"
+    },
+    {
+      "source": "/api/v1/validation/jit/status",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/validation/jit/status"
+    },
+    {
+      "source": "/api/v1/health",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/health"
+    },
+    {
+      "source": "/api/v1/health/ready",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/health/ready"
+    },
+    {
+      "source": "/api/v1/health/live",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/health/live"
+    },
+    {
+      "source": "/api/v1/cpm/status",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/cpm/status"
+    },
+    {
+      "source": "/api/v1/cpm/credentials/attention",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/cpm/credentials/attention"
+    },
+    {
+      "source": "/api/v1/safes",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/safes"
+    },
+    {
+      "source": "/api/v1/safes/:id",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/safes/:id"
+    },
+    {
+      "source": "/api/v1/safes/statistics",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/safes/statistics"
+    },
+    {
+      "source": "/api/v1/roles",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/roles"
+    },
+    {
+      "source": "/api/v1/roles/:id",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/roles/:id"
+    },
+    {
+      "source": "/api/v1/policies",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/policies"
+    },
+    {
+      "source": "/api/v1/policies/:id",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/policies/:id"
+    },
+    {
+      "source": "/api/v1/user/preferences/notifications",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/user/preferences/notifications"
+    },
+    {
+      "source": "/api/v1/user/preferences/dashboard",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/user/preferences/dashboard"
     },
     {
       "source": "/api/v1/discovery/targets",

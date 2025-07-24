@@ -138,6 +138,10 @@ export const Discovery: React.FC = () => {
   const fetchScans = async () => {
     try {
       console.log('Fetching discovery scans...');
+      
+      // Clear cache to ensure fresh data
+      clearApiCache('/discovery/scans');
+      
       const response = await discoveryApi.scans.list(undefined, 50, 0);
       console.log('Scans response:', response);
       const newScans = response.data || [];
@@ -158,6 +162,9 @@ export const Discovery: React.FC = () => {
 
   const fetchDiscoveredAccounts = async () => {
     try {
+      // Clear cache to ensure fresh data
+      clearApiCache('/discovery/accounts');
+      
       const response = await discoveryApi.accounts.list(undefined, 'pending_approval');
       setDiscoveredAccounts(response.data || []);
     } catch (error) {
@@ -168,6 +175,9 @@ export const Discovery: React.FC = () => {
 
   const fetchStatistics = async () => {
     try {
+      // Clear cache to ensure fresh data
+      clearApiCache('/discovery/statistics');
+      
       const response = await discoveryApi.getStatistics('30d');
       setStatistics(response.data || null);
     } catch (error) {

@@ -1062,7 +1062,8 @@ export const discoveryApi = {
       params.append('offset', offset.toString());
       
       const endpoint = `/discovery/scans${params.toString() ? `?${params.toString()}` : ''}`;
-      return await cachedApiRequest(endpoint, {
+      // Use non-cached request for scans to get real-time data
+      return await apiRequest(endpoint, {
         method: 'GET',
       });
     },
@@ -1102,7 +1103,8 @@ export const discoveryApi = {
       params.append('status', status);
       
       const endpoint = `/discovery/accounts${params.toString() ? `?${params.toString()}` : ''}`;
-      return await cachedApiRequest(endpoint, {
+      // Use non-cached request for accounts to get real-time data
+      return await apiRequest(endpoint, {
         method: 'GET',
       });
     },
@@ -1134,7 +1136,8 @@ export const discoveryApi = {
     params.append('range', range);
     
     const endpoint = `/discovery/statistics?${params.toString()}`;
-    return await cachedApiRequest(endpoint, {
+    // Use non-cached request for statistics to get real-time data
+    return await apiRequest(endpoint, {
       method: 'GET',
     });
   },
