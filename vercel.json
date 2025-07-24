@@ -17,6 +17,46 @@
       "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/accounts/statistics"
     },
     {
+      "source": "/api/v1/discovery/targets",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/discovery/targets"
+    },
+    {
+      "source": "/api/v1/discovery/targets/:id",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/discovery/targets/:id"
+    },
+    {
+      "source": "/api/v1/discovery/targets/:id/scan",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/discovery/targets/:id/scan"
+    },
+    {
+      "source": "/api/v1/discovery/scans",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/discovery/scans"
+    },
+    {
+      "source": "/api/v1/discovery/scans/:id",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/discovery/scans/:id"
+    },
+    {
+      "source": "/api/v1/discovery/scans/:id/cancel",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/discovery/scans/:id/cancel"
+    },
+    {
+      "source": "/api/v1/discovery/accounts",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/discovery/accounts"
+    },
+    {
+      "source": "/api/v1/discovery/accounts/approve",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/discovery/accounts/approve"
+    },
+    {
+      "source": "/api/v1/discovery/accounts/reject",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/discovery/accounts/reject"
+    },
+    {
+      "source": "/api/v1/discovery/statistics",
+      "destination": "https://cybervault-api-a1fo.onrender.com/api/v1/discovery/statistics"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "https://cybervault-api-a1fo.onrender.com/api/$1"
     },
