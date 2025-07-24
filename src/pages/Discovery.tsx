@@ -45,15 +45,23 @@ export interface DiscoveryScan {
   target_name?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   settings: Record<string, any>;
-  metadata: {
+  metadata: Record<string, any> & {
     accounts_discovered?: number;
     accounts_stored?: number;
     completed_at?: string;
     error_message?: string;
+    error?: string;
+    scan_duration?: string;
+    total_connections?: number;
   };
   started_at: string;
   completed_at?: string;
   created_at: string;
+  discovery_targets?: {
+    hostname?: string;
+    name?: string;
+    target_type?: string;
+  };
 }
 
 export interface DiscoveredAccount {
