@@ -17,10 +17,11 @@ import { SignupPage } from './pages/SignupPage';
 import { LoadingDemoPage } from './pages/LoadingDemoPage';
 import { InactivityTestPage } from './pages/InactivityTestPage';
 import { CPMTestComponent } from './components/debug/CPMTestComponent';
+import { ComprehensiveValidationDashboard, ComponentDemoPage } from './pages';
+import { Discovery } from './pages/Discovery';
 
 // Placeholder components for remaining pages
 const CertificateManager = () => <div className="p-6"><h1 className="text-2xl font-bold">Certificate Manager</h1><p className="text-gray-600">Manage SSL/TLS certificates and track expiration dates.</p></div>;
-const Discovery = () => <div className="p-6"><h1 className="text-2xl font-bold">Discovery Module</h1><p className="text-gray-600">Discover and inventory privileged accounts across your infrastructure.</p></div>;
 const AccessControl = () => <div className="p-6"><h1 className="text-2xl font-bold">Access Control</h1><p className="text-gray-600">Configure role-based access control policies and permissions.</p></div>;
 const Integrations = () => <div className="p-6"><h1 className="text-2xl font-bold">Integrations</h1><p className="text-gray-600">Connect with external systems like Okta, Azure AD, ServiceNow, and Splunk.</p></div>;
 const AuditLogs = () => <div className="p-6"><h1 className="text-2xl font-bold">Audit Logs</h1><p className="text-gray-600">Review detailed audit trails and compliance reports.</p></div>;
@@ -43,6 +44,9 @@ function App() {
             
             {/* Demo route for loading animations */}
             <Route path="/loading-demo" element={<LoadingDemoPage />} />
+            
+            {/* Demo route for component showcase */}
+            <Route path="/component-demo" element={<ComponentDemoPage />} />
             
             {/* Demo route for inactivity logout */}
             <Route path="/inactivity-test" element={<InactivityTestPage />} />
@@ -93,6 +97,14 @@ function App() {
               <ProtectedRoute>
                 <DashboardLayout>
                   <Accounts />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/validation-dashboard" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <ComprehensiveValidationDashboard />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

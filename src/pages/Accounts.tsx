@@ -4,15 +4,15 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { AnimatedTabs } from '../components/ui/AnimatedTabs';
+import { AccountCard } from '../components/accounts/AccountCardEnhanced';
 import CreateAccountModal from '../components/accounts/CreateAccountModal';
+import { ValidationHistoryModal } from '../components/accounts/ValidationHistoryModal';
 import { getAuthHeaders } from '../store/authStore';
+import { accountsApi } from '../utils/api';
 import {
   Users,
   Plus,
   Search,
-  Trash2,
-  RotateCcw,
-  Copy,
   Key,
   AlertTriangle,
   CheckCircle,
@@ -39,6 +39,9 @@ interface Account {
   username: string;
   rotation_policy: string;
   rotation_status: 'no_policy' | 'current' | 'due_soon' | 'overdue';
+  validation_status?: 'valid' | 'invalid' | 'pending' | 'untested';
+  last_validation_date?: string;
+  last_validation_result?: string;
   description?: string;
   tags?: string;
   owner_email?: string;
@@ -54,6 +57,10 @@ interface AccountStatistics {
   total: number;
   active: number;
   requiring_rotation: number;
+  validation_valid?: number;
+  validation_invalid?: number;
+  validation_pending?: number;
+  validation_untested?: number;
   last_updated: string;
 }
 
@@ -113,6 +120,11 @@ export const Accounts: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Validation-related state
+  const [validationLoading, setValidationLoading] = useState<string | null>(null);
+  const [showValidationHistory, setShowValidationHistory] = useState(false);
+  const [selectedAccountForHistory, setSelectedAccountForHistory] = useState<{ id: string; name: string } | null>(null);
 
   // Fetch accounts based on selected tab
   const fetchAccounts = async () => {
@@ -146,7 +158,33 @@ export const Accounts: React.FC = () => {
       }
 
       const data = await response.json();
-      setAccounts(data.data || data.accounts || []);
+      const accountsData = data.data || data.accounts || [];
+      
+      console.log('Raw accounts data from API:', accountsData); // Debug log
+      
+      // Normalize field names to match UI expectations
+      const normalizedAccounts = accountsData.map((account: any) => ({
+        ...account,
+        // Map API field names to UI expectations
+        hostname: account.hostname_ip || account.hostname || 'N/A',
+        validation_status: account.last_validation_status || account.validation_status || 'untested',
+        last_validation_date: account.last_validated_at || account.last_validation_date || null,
+        last_validation_result: account.validation_message || account.last_validation_result || null,
+        // Ensure other expected fields exist with proper defaults
+        account_type: account.account_type || 'N/A',
+        safe_name: account.safe_name || 'Unknown Safe', // Don't show UUID, show friendly name
+        platform_id: account.platform_id || account.system_type || 'N/A',
+        // Map system type from platform_id if needed
+        system_type: account.system_type || (account.platform_id === 'linux' ? 'Linux' : 'Windows'),
+        // Ensure connection method is properly mapped
+        connection_method: account.connection_method || 'SSH',
+        // Handle rotation status
+        rotation_status: account.rotation_status || 'no_policy'
+      }));
+      
+      console.log('Normalized accounts:', normalizedAccounts); // Debug log
+      
+      setAccounts(normalizedAccounts);
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setError(error instanceof Error ? error.message : 'An error occurred');
@@ -225,6 +263,76 @@ export const Accounts: React.FC = () => {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  // Validate account credentials
+  const handleValidateAccount = async (accountId: string) => {
+    try {
+      setValidationLoading(accountId);
+      
+      const response = await accountsApi.validate(accountId);
+      console.log('Full validation response:', JSON.stringify(response, null, 2)); // Debug log
+      
+      if (response && response.success) {
+        // Extract validation status and ensure it's a valid value
+        const validationStatus = response.validation_status;
+        const mappedStatus: Account['validation_status'] = 
+          validationStatus === 'valid' ? 'valid' : 
+          validationStatus === 'invalid' ? 'invalid' : 
+          validationStatus === 'pending' ? 'pending' : 
+          'untested';
+        
+        console.log('Mapped validation status:', mappedStatus); // Debug log
+        
+        // Immediately update the account's validation status in the UI
+        setAccounts(prevAccounts => {
+          const updatedAccounts = prevAccounts.map(account => {
+            if (account.id === accountId) {
+              const updatedAccount = {
+                ...account,
+                validation_status: mappedStatus,
+                last_validation_date: response.validation_timestamp || new Date().toISOString(),
+                last_validation_result: response.validation_message || 'Validation completed'
+              };
+              console.log('Account before update:', account);
+              console.log('Account after update:', updatedAccount);
+              return updatedAccount;
+            }
+            return account;
+          });
+          return updatedAccounts;
+        });
+        
+        // Force a re-render by updating a separate state if needed
+        setError(`Validation completed for account ${accountId} with status: ${mappedStatus}`);
+        setTimeout(() => setError(null), 3000); // Clear after 3 seconds
+      }
+    } catch (error) {
+      console.error('Error validating account:', error);
+      setError('Failed to validate account credentials');
+      
+      // Set validation status to invalid on error
+      setAccounts(prevAccounts => 
+        prevAccounts.map(account => 
+          account.id === accountId 
+            ? {
+                ...account,
+                validation_status: 'invalid' as Account['validation_status'],
+                last_validation_date: new Date().toISOString(),
+                last_validation_result: error instanceof Error ? error.message : 'Validation failed'
+              }
+            : account
+        )
+      );
+    } finally {
+      setValidationLoading(null);
+    }
+  };
+
+  // Show validation history
+  const handleShowValidationHistory = (account: Account) => {
+    setSelectedAccountForHistory({ id: account.id, name: account.name });
+    setShowValidationHistory(true);
   };
 
   // Copy password to clipboard
@@ -326,7 +434,7 @@ export const Accounts: React.FC = () => {
 
       {/* Statistics Cards */}
       {statistics && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="p-4" glowIntensity="subtle">
             <div className="flex items-center justify-between">
               <div>
@@ -359,6 +467,21 @@ export const Accounts: React.FC = () => {
               </div>
               <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5 text-orange-500" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4" glowIntensity="subtle">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Valid Credentials</p>
+                <p className="text-2xl font-semibold text-gray-900">{statistics.validation_valid || 0}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {statistics.validation_invalid ? `${statistics.validation_invalid} invalid` : 'All validated'}
+                </p>
+              </div>
+              <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
+                <Shield className="w-5 h-5 text-green-500" />
               </div>
             </div>
           </Card>
@@ -421,114 +544,20 @@ export const Accounts: React.FC = () => {
           </Card>
         ) : (
           filteredAccounts.map((account, index) => (
-            <Card 
-              key={account.id} 
-              className="p-6" 
-              glowIntensity={index % 2 === 0 ? "subtle" : "normal"}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                      {getSystemTypeIcon(account.system_type || 'Windows')}
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900">{account.name || 'Unknown Account'}</h3>
-                      <p className="text-sm text-gray-500">{account.system_type || 'Unknown'}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
-                    <div>
-                      <p className="text-xs text-gray-500">Username</p>
-                      <p className="text-sm font-medium text-gray-900">{account.username || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Hostname</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {account.hostname || 'N/A'}{account.port ? `:${account.port}` : ''}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Platform Policy</p>
-                      <p className="text-sm font-medium text-gray-900">{account.platform_id || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Safe</p>
-                      <p className="text-sm font-medium text-gray-900">{account.safe_name || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Rotation Status</p>
-                      <div className="mt-1">
-                        {getRotationStatusBadge(account.rotation_status)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
-                    <div>
-                      <p className="text-xs text-gray-500">Account Type</p>
-                      <p className="text-sm font-medium text-gray-900">{account.account_type || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Connection Method</p>
-                      <p className="text-sm font-medium text-gray-900">{account.connection_method || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Last Rotated</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {account.last_rotated ? new Date(account.last_rotated).toLocaleDateString() : 'Never'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {account.description && (
-                    <div className="mt-3">
-                      <p className="text-xs text-gray-500">Description</p>
-                      <p className="text-sm text-gray-900">{account.description}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 ml-4">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleCopyPassword(account.id)}
-                    className="flex items-center gap-1"
-                  >
-                    <Copy className="w-3 h-3" />
-                    Copy Password
-                  </Button>
-                  
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleRotatePassword(account.id)}
-                    disabled={actionLoading === account.id}
-                    className="flex items-center gap-1"
-                  >
-                    {actionLoading === account.id ? (
-                      <LoadingSpinner variant="spinner" size="sm" />
-                    ) : (
-                      <RotateCcw className="w-3 h-3" />
-                    )}
-                    Rotate
-                  </Button>
-
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleDeleteAccount(account.id)}
-                    disabled={actionLoading === account.id}
-                    className="flex items-center gap-1"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </Card>
+            <AccountCard
+              key={account.id}
+              account={account}
+              index={index}
+              getSystemTypeIcon={getSystemTypeIcon}
+              getRotationStatusBadge={getRotationStatusBadge}
+              validationLoading={validationLoading}
+              actionLoading={actionLoading}
+              onCopyPassword={handleCopyPassword}
+              onValidateAccount={handleValidateAccount}
+              onShowHistory={handleShowValidationHistory}
+              onRotatePassword={handleRotatePassword}
+              onDeleteAccount={handleDeleteAccount}
+            />
           ))
         )}
       </div>
@@ -542,6 +571,19 @@ export const Accounts: React.FC = () => {
           fetchStatistics();
         }}
       />
+
+      {/* Validation History Modal */}
+      {selectedAccountForHistory && (
+        <ValidationHistoryModal
+          isOpen={showValidationHistory}
+          onClose={() => {
+            setShowValidationHistory(false);
+            setSelectedAccountForHistory(null);
+          }}
+          accountId={selectedAccountForHistory.id}
+          accountName={selectedAccountForHistory.name}
+        />
+      )}
     </div>
   );
 };

@@ -1,0 +1,991 @@
+import { getAuthHeaders, getCurrentUserId } from '../store/authStore';
+// Generic API request function with better error handling and rate limiting
+export const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
+  const url = `${API_BASE}${endpoint}`;
+  
+  // Log request rate in development
+  if (import.meta.env.DEV) {
+    logRequestRate(endpoint);
+  }
+  
+  const defaultOptions: RequestInit = {
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    credentials: 'include',
+    ...options,
+  };
+
+  console.log(`Making API request to: ${url}`);
+  console.log('Request options:', defaultOptions);st cache to prevent duplicate rapid requests
+const requestCache = new Map<string, { promise: Promise<any>; timestamp: number }>();
+const CACHE_DURATION = 30000; // 30 seconds
+
+// Clear expired cache entries
+const clearExpiredCache = () => {
+  const now = Date.now();
+  for (const [key, entry] of requestCache.entries()) {
+    if (now - entry.timestamp > CACHE_DURATION) {
+      requestCache.delete(key);
+    }
+  }
+};
+
+// API base configuration
+const API_BASE = '/api/v1';
+
+// Backend URL for EventSource connections (which don't go through Vite proxy)
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+export const BACKEND_API_BASE = `${BACKEND_URL}/api/v1`;
+
+// Rate limiting helpers
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Exponential backoff retry for rate-limited requests
+const retryWithBackoff = async (
+  fn: () => Promise<Response>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<Response> => {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fn();
+      
+      // If it's not a 429, return the response (success or other error)
+      if (response.status !== 429) {
+        return response;
+      }
+      
+      // If it's the last attempt, don't retry
+      if (attempt === maxRetries) {
+        return response;
+      }
+      
+      // Extract retry-after header if available
+      const retryAfter = response.headers.get('Retry-After');
+      const delayMs = retryAfter ? 
+        parseInt(retryAfter) * 1000 : // Retry-After is in seconds
+        baseDelay * Math.pow(2, attempt); // Exponential backoff
+      
+      console.log(`Rate limited (429). Retrying in ${delayMs}ms... (attempt ${attempt + 1}/${maxRetries + 1})`);
+      await delay(delayMs);
+      
+    } catch (error) {
+      // If it's the last attempt or not a network error, throw
+      if (attempt === maxRetries || !(error instanceof TypeError)) {
+        throw error;
+      }
+      
+      // Exponential backoff for network errors too
+      const delayMs = baseDelay * Math.pow(2, attempt);
+      console.log(`Network error. Retrying in ${delayMs}ms... (attempt ${attempt + 1}/${maxRetries + 1})`);
+      await delay(delayMs);
+    }
+  }
+  
+  throw new Error('Max retries exceeded');
+};
+
+// Generic API request function with better error handling
+export const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
+  const url = `${API_BASE}${endpoint}`;
+  
+  const defaultOptions: RequestInit = {
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    credentials: 'include',
+    ...options,
+  };
+
+  console.log(`Making API request to: ${url}`);
+  console.log('Request options:', defaultOptions);
+
+  // Check cache first
+  const cacheKey = `${options.method || 'GET'}:${url}`;
+  if (options.method === 'GET' && requestCache.has(cacheKey)) {
+    const cached = requestCache.get(cacheKey);
+    if (cached) {
+      console.log('Returning cached response');
+      return cached.promise;
+    }
+  }
+
+  try {
+    const response = await retryWithBackoff(() => fetch(url, defaultOptions));
+    
+    console.log(`Response status: ${response.status}`);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      
+      // Provide specific messaging for rate limiting
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        errorMessage = `Rate limit exceeded. ${retryAfter ? `Please try again in ${retryAfter} seconds.` : 'Please try again later.'}`;
+      } else {
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error('Could not parse error response:', parseError);
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log('API response data:', data);
+
+    // Cache successful GET responses
+    if (options.method === 'GET') {
+      requestCache.set(cacheKey, { promise: Promise.resolve(data), timestamp: Date.now() });
+    }
+
+    return data;
+  } catch (error) {
+    console.error(`API request failed for ${url}:`, error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Network error: Unable to connect to the server. Please check your connection.');
+      } else if (error.message.includes('CORS')) {
+        throw new Error('CORS error: Cross-origin request blocked. Please check server configuration.');
+      }
+    }
+    
+    throw error;
+  }
+};
+
+// Cached API request for GET endpoints to prevent rapid duplicate calls
+export const cachedApiRequest = async (endpoint: string, options: RequestInit = {}) => {
+  // Only cache GET requests
+  if (options.method && options.method !== 'GET') {
+    return apiRequest(endpoint, options);
+  }
+  
+  const cacheKey = `${endpoint}_${JSON.stringify(options)}`;
+  const now = Date.now();
+  
+  // Check if we have a valid cached request
+  const cached = requestCache.get(cacheKey);
+  if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+    console.log(`Using cached request for: ${endpoint}`);
+    return cached.promise;
+  }
+  
+  // Clear expired entries occasionally
+  if (requestCache.size > 50) {
+    clearExpiredCache();
+  }
+  
+  // Make new request and cache it
+  const promise = apiRequest(endpoint, options);
+  requestCache.set(cacheKey, { promise, timestamp: now });
+  
+  // Remove from cache if the request fails
+  promise.catch(() => {
+    requestCache.delete(cacheKey);
+  });
+  
+  return promise;
+};
+
+// Request rate monitoring (in development)
+let requestCount = 0;
+let lastRequestTime = Date.now();
+
+const logRequestRate = (endpoint: string) => {
+  requestCount++;
+  const now = Date.now();
+  const timeDiff = now - lastRequestTime;
+  
+  if (timeDiff < 1000) { // Less than 1 second
+    console.warn(`⚠️ Rapid API requests detected: ${requestCount} requests in ${timeDiff}ms to ${endpoint}`);
+  }
+  
+  if (requestCount > 10) {
+    console.warn(`⚠️ High request volume: ${requestCount} total requests`);
+    // Reset counter periodically
+    if (timeDiff > 60000) { // Reset every minute
+      requestCount = 0;
+      lastRequestTime = now;
+    }
+  }
+};
+
+// Clear cache manually (useful for forced refreshes)
+export const clearApiCache = (endpoint?: string) => {
+  if (endpoint) {
+    // Clear specific endpoint
+    for (const key of requestCache.keys()) {
+      if (key.startsWith(endpoint)) {
+        requestCache.delete(key);
+      }
+    }
+  } else {
+    // Clear all cache
+    requestCache.clear();
+  }
+};
+
+// Accounts API functions
+export const accountsApi = {
+  create: (accountData: any) => 
+    apiRequest('/accounts', {
+      method: 'POST',
+      body: JSON.stringify(accountData),
+    }),
+    
+  list: () => 
+    apiRequest('/accounts', {
+      method: 'GET',
+    }),
+    
+  get: (id: string) => 
+    apiRequest(`/accounts/${id}`, {
+      method: 'GET',
+    }),
+    
+  update: (id: string, accountData: any) => 
+    apiRequest(`/accounts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(accountData),
+    }),
+    
+  delete: (id: string) => 
+    apiRequest(`/accounts/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // New validation endpoints
+  validate: (id: string) => 
+    apiRequest(`/accounts/${id}/validate`, {
+      method: 'POST',
+    }),
+    
+  getValidationHistory: (id: string) => 
+    apiRequest(`/accounts/${id}/validation-history`, {
+      method: 'GET',
+    }),
+};
+
+// Safes API functions
+export const safesApi = {
+  create: (safeData: {
+    name: string;
+    description?: string;
+    safe_type?: 'standard' | 'shared' | 'department' | 'application';
+    access_level?: 'private' | 'team' | 'department' | 'public';
+    settings?: object;
+  }) => {
+    const currentUserId = getCurrentUserId();
+    const requestBody = {
+      ...safeData,
+      owner_id: currentUserId
+    };
+    
+    return apiRequest('/safes', {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+  },
+    
+  list: () => 
+    apiRequest('/safes', {
+      method: 'GET',
+    }),
+    
+  get: (id: string) => 
+    apiRequest(`/safes/${id}`, {
+      method: 'GET',
+    }),
+    
+  update: (id: string, safeData: {
+    name?: string;
+    description?: string;
+    safe_type?: 'standard' | 'shared' | 'department' | 'application';
+    access_level?: 'private' | 'team' | 'department' | 'public';
+    status?: 'active' | 'inactive' | 'archived';
+    settings?: object;
+  }) => 
+    apiRequest(`/safes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(safeData),
+    }),
+    
+  delete: (id: string) => 
+    apiRequest(`/safes/${id}`, {
+      method: 'DELETE',
+    }),
+    
+  getStatistics: () => 
+    apiRequest('/safes/statistics', {
+      method: 'GET',
+    }),
+    
+  grantPermission: (id: string, permissionData: {
+    userId: string;
+    permission_level: 'read' | 'write' | 'admin' | 'owner';
+  }) => 
+    apiRequest(`/safes/${id}/permissions`, {
+      method: 'POST',
+      body: JSON.stringify(permissionData),
+    }),
+    
+  listPermissions: (id: string) => 
+    apiRequest(`/safes/${id}/permissions`, {
+      method: 'GET',
+    }),
+    
+  revokePermission: (id: string, permissionId: string) => 
+    apiRequest(`/safes/${id}/permissions/${permissionId}`, {
+      method: 'DELETE',
+    }),
+    
+  listActivity: (id: string) => 
+    apiRequest(`/safes/${id}/activity`, {
+      method: 'GET',
+    }),
+    
+  listAccounts: (id: string) => 
+    apiRequest(`/safes/${id}/accounts`, {
+      method: 'GET',
+    }),
+    
+  moveAccounts: (moveData: {
+    sourceId: string;
+    targetId: string;
+    accountIds: string[];
+  }) => 
+    apiRequest('/safes/move-accounts', {
+      method: 'POST',
+      body: JSON.stringify(moveData),
+    }),
+};
+
+// CPM (Credential Protection Management) API functions
+export const getCPMStatus = async () => {
+  try {
+    return await apiRequest('/cpm/status');
+  } catch (error) {
+    console.error('Failed to get CPM status:', error);
+    throw error;
+  }
+};
+
+// Trigger manual credential verification
+export const verifyCredential = async (credentialId: string, force: boolean = false) => {
+  try {
+    const body = {
+      credential_ids: [credentialId], // Send as array of UUIDs
+      force: force                    // Optional boolean parameter
+    };
+    return await apiRequest('/cpm/verify', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.error('Failed to verify credential:', error);
+    throw error;
+  }
+};
+
+// Trigger manual verification for multiple credentials
+export const verifyMultipleCredentials = async (credentialIds: string[], force: boolean = false) => {
+  try {
+    const body = {
+      credential_ids: credentialIds, // Array of credential UUIDs
+      force: force                   // Optional boolean parameter
+    };
+    return await apiRequest('/cpm/verify', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.error('Failed to verify credentials:', error);
+    throw error;
+  }
+};
+
+// Trigger global verification for all credentials
+export const verifyAllCredentials = async (force: boolean = false) => {
+  try {
+    // First, get all credentials to get their IDs
+    const credentialsResponse = await apiRequest('/credentials');
+    const credentials = credentialsResponse.data || credentialsResponse.credentials || credentialsResponse || [];
+    
+    // Extract all credential IDs
+    const credentialIds = credentials.map((cred: any) => cred.id).filter(Boolean);
+    
+    if (credentialIds.length === 0) {
+      throw new Error('No credentials found to verify');
+    }
+    
+    // Verify all credentials
+    const body = {
+      credential_ids: credentialIds,
+      force: force
+    };
+    return await apiRequest('/cpm/verify', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.error('Failed to trigger global verification:', error);
+    throw error;
+  }
+};
+
+// Get verification history for a specific credential
+export const getCredentialHistory = async (credentialId: string) => {
+  try {
+    return await apiRequest(`/cpm/credentials/${credentialId}/history`);
+  } catch (error) {
+    console.error('Failed to fetch credential history:', error);
+    throw error;
+  }
+};
+
+// Get credentials that need attention
+export const getCredentialsNeedingAttention = async () => {
+  try {
+    return await apiRequest('/cpm/credentials/attention');
+  } catch (error) {
+    console.error('Failed to fetch credentials needing attention:', error);
+    throw error;
+  }
+};
+
+// Batch update credential status (Admin only)
+export const batchUpdateCredentials = async (updates: Array<{
+  credentialId: string;
+  status: string;
+  reason?: string;
+}>) => {
+  try {
+    return await apiRequest('/cpm/credentials/batch-update', {
+      method: 'POST',
+      body: JSON.stringify({ updates }),
+    });
+  } catch (error) {
+    console.error('Failed to batch update credentials:', error);
+    throw error;
+  }
+};
+
+// Get CPM configuration (Admin only)
+export const getCPMConfiguration = async () => {
+  try {
+    return await apiRequest('/cpm/configuration');
+  } catch (error) {
+    console.error('Failed to get CPM configuration:', error);
+    throw error;
+  }
+};
+
+// Health check endpoints
+export const getHealthStatus = async () => {
+  try {
+    const response = await fetch('/health');
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to get health status:', error);
+    throw error;
+  }
+};
+
+export const getReadinessStatus = async () => {
+  try {
+    const response = await fetch('/ready');
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to get readiness status:', error);
+    throw error;
+  }
+};
+
+export const getLivenessStatus = async () => {
+  try {
+    const response = await fetch('/live');
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to get liveness status:', error);
+    throw error;
+  }
+};
+
+export const getServiceMetrics = async () => {
+  try {
+    const response = await fetch('/metrics');
+    return await response.text(); // Metrics are usually returned as text
+  } catch (error) {
+    console.error('Failed to get service metrics:', error);
+    throw error;
+  }
+};
+
+// Test function to verify API connectivity
+export const testApiConnectivity = async () => {
+  try {
+    console.log('Testing API connectivity...');
+    
+    // Test a simple endpoint first (like dashboard stats)
+    const response = await fetch('/api/v1/dashboard/stats', {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    console.log(`Connectivity test - Status: ${response.status}`);
+    
+    if (response.ok) {
+      console.log('✅ API connectivity is working');
+      return true;
+    } else {
+      console.log('❌ API connectivity test failed');
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ API connectivity test error:', error);
+    return false;
+  }
+};
+
+/**
+ * Credential verification API functions
+ * 
+ * The backend expects:
+ * - credential_ids: array of UUIDs (must contain valid credential IDs)
+ * - force: optional boolean parameter
+ * 
+ * For global verification, we first fetch all credential IDs and then verify them all.
+ */
+
+// Account Validation API functions
+export const accountValidationApi = {
+  // Get validation status overview
+  getStatus: () => 
+    apiRequest('/accounts/validation/status', {
+      method: 'GET',
+    }),
+    
+  // Get comprehensive validation statistics
+  getStatistics: (timeRange?: '24h' | '7d' | '30d') => 
+    apiRequest(`/accounts/validation/statistics${timeRange ? `?range=${timeRange}` : ''}`, {
+      method: 'GET',
+    }),
+    
+  // Advanced search with comprehensive filters
+  searchAccounts: (filters: {
+    hostname?: string;
+    username?: string;
+    errorContent?: string;
+    jitJustification?: string;
+    validationStatus?: string[];
+    systemTypes?: string[];
+    connectionMethods?: string[];
+    verificationMethods?: string[];
+    errorCategories?: string[];
+    lastValidatedRange?: { start: string; end: string };
+    createdRange?: { start: string; end: string };
+    associatedJitSessions?: string;
+    criticalFailuresOnly?: boolean;
+    recentFailuresOnly?: boolean;
+    page?: number;
+    limit?: number;
+    sort?: string;
+    order?: 'asc' | 'desc';
+  }) => 
+    apiRequest('/accounts/validation/search', {
+      method: 'POST',
+      body: JSON.stringify(filters),
+    }),
+    
+  // Manual trigger for specific account validation
+  manualTrigger: (accountIds: string[], options?: {
+    priority?: 'low' | 'medium' | 'high';
+    force_revalidation?: boolean;
+    notification_settings?: {
+      email?: boolean;
+      in_app?: boolean;
+    };
+  }) => 
+    apiRequest('/accounts/validation/manual-trigger', {
+      method: 'POST',
+      body: JSON.stringify({ account_ids: accountIds, ...options }),
+    }),
+    
+  // Bulk validation operations
+  bulkValidation: (filters: {
+    system_types?: string[];
+    validation_status?: string[];
+    last_validated_before?: string;
+  }, options?: {
+    batch_size?: number;
+    delay_between_batches?: number;
+    priority?: 'low' | 'medium' | 'high';
+  }) => 
+    apiRequest('/accounts/validation/bulk-trigger', {
+      method: 'POST',
+      body: JSON.stringify({ filters, options }),
+    }),
+    
+  // Get validation history for specific account
+  getHistory: (accountId: string, options?: {
+    limit?: number;
+    include_details?: boolean;
+    date_range?: { start: string; end: string };
+  }) => 
+    apiRequest(`/accounts/${accountId}/validation/history${options ? `?${new URLSearchParams(Object.entries(options).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : String(v)]))}` : ''}`, {
+      method: 'GET',
+    }),
+    
+  // Get recent validation attempts
+  getRecentAttempts: (filters?: {
+    status?: 'success' | 'failure' | 'pending';
+    account_id?: string;
+    system_type?: string;
+    limit?: number;
+    triggered_by?: 'manual' | 'scheduled' | 'jit_request';
+  }) => 
+    apiRequest(`/accounts/validation/attempts/recent${filters ? `?${new URLSearchParams(Object.entries(filters).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}` : ''}`, {
+      method: 'GET',
+    }),
+    
+  // Get validation failures with categorization
+  getFailures: (filters?: {
+    severity?: 'low' | 'medium' | 'high' | 'critical';
+    error_category?: 'connection' | 'authentication' | 'authorization' | 'timeout' | 'configuration';
+    system_type?: string;
+    since?: string;
+    limit?: number;
+    include_associated_jit_sessions?: boolean;
+  }) => 
+    apiRequest(`/accounts/validation/failures${filters ? `?${new URLSearchParams(Object.entries(filters).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}` : ''}`, {
+      method: 'GET',
+    }),
+    
+  // Export validation reports
+  exportReport: (filters: {
+    format?: 'csv' | 'xlsx' | 'json';
+    include_fields?: string[];
+    date_range?: { start: string; end: string };
+    validation_status?: string[];
+    system_types?: string[];
+  }) => 
+    apiRequest('/accounts/validation/export', {
+      method: 'POST',
+      body: JSON.stringify(filters),
+    }),
+    
+  // Get system health matrix
+  getSystemHealth: (timeRange?: '24h' | '7d' | '30d') => 
+    apiRequest(`/accounts/validation/system-health${timeRange ? `?range=${timeRange}` : ''}`, {
+      method: 'GET',
+    }),
+    
+  // Get validation configuration and settings
+  getConfiguration: () => 
+    apiRequest('/accounts/validation/configuration', {
+      method: 'GET',
+    }),
+    
+  // Update validation configuration
+  updateConfiguration: (config: {
+    validation_frequency?: number;
+    timeout_settings?: {
+      connection_timeout?: number;
+      authentication_timeout?: number;
+    };
+    retry_settings?: {
+      max_retries?: number;
+      retry_delay?: number;
+    };
+    notification_settings?: {
+      email_on_failure?: boolean;
+      email_on_critical?: boolean;
+      webhook_url?: string;
+    };
+  }) => 
+    apiRequest('/accounts/validation/configuration', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    }),
+};
+
+// JIT Validation API functions
+export const jitValidationApi = {
+  // Get validation status for accounts in a specific JIT session
+  getSessionAccountStatus: (sessionId: string) => 
+    apiRequest(`/jit-sessions/${sessionId}/validation-status`, {
+      method: 'GET',
+    }),
+    
+  // Get all JIT sessions with validation context
+  getSessionsWithValidation: (filters?: {
+    status?: 'active' | 'pending' | 'completed' | 'expired';
+    has_validation_issues?: boolean;
+    user_id?: string;
+    date_range?: { start: string; end: string };
+  }) => 
+    apiRequest('/jit-sessions/validation', {
+      method: 'GET',
+      body: filters ? JSON.stringify(filters) : undefined,
+    }),
+    
+  // Trigger manual validation for accounts in JIT session
+  triggerSessionValidation: (sessionId: string, options?: {
+    account_ids?: string[];
+    force?: boolean;
+    priority?: 'low' | 'medium' | 'high';
+  }) => 
+    apiRequest(`/jit-sessions/${sessionId}/trigger-validation`, {
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    }),
+    
+  // Get JIT session validation history
+  getSessionValidationHistory: (sessionId: string) => 
+    apiRequest(`/jit-sessions/${sessionId}/validation-history`, {
+      method: 'GET',
+    }),
+    
+  // Update account validation status in JIT context
+  updateAccountValidationStatus: (sessionId: string, accountId: string, status: {
+    validation_status: 'verified' | 'failed' | 'pending';
+    error_message?: string;
+    admin_override?: boolean;
+    notes?: string;
+  }) => 
+    apiRequest(`/jit-sessions/${sessionId}/accounts/${accountId}/validation-status`, {
+      method: 'PUT',
+      body: JSON.stringify(status),
+    }),
+};
+
+// Audit Validation API functions
+export const auditValidationApi = {
+  // Get general verification logs
+  getVerificationLogs: (filters?: {
+    account_id?: string;
+    status?: 'success' | 'failure';
+    date_range?: { start: string; end: string };
+    page?: number;
+    limit?: number;
+  }) => 
+    apiRequest('/audit/validation/verification-logs', {
+      method: 'GET',
+      body: filters ? JSON.stringify(filters) : undefined,
+    }),
+    
+  // Get critical failure logs
+  getCriticalFailures: (filters?: {
+    severity?: 'high' | 'critical';
+    since?: string;
+    page?: number;
+    limit?: number;
+  }) => 
+    apiRequest('/audit/validation/critical-failures', {
+      method: 'GET',
+      body: filters ? JSON.stringify(filters) : undefined,
+    }),
+    
+  // Get JIT-specific verification logs
+  getJitVerificationLogs: (filters?: {
+    session_id?: string;
+    date_range?: { start: string; end: string };
+    page?: number;
+    limit?: number;
+  }) => 
+    apiRequest('/audit/validation/jit-logs', {
+      method: 'GET',
+      body: filters ? JSON.stringify(filters) : undefined,
+    }),
+    
+  // Export audit logs
+  exportLogs: (filters: {
+    format: 'csv' | 'xlsx' | 'json';
+    event_types?: string[];
+    severity?: 'low' | 'medium' | 'high' | 'critical';
+    date_range?: { start: string; end: string };
+    include_jit_context?: boolean;
+    include_system_details?: boolean;
+  }) => 
+    apiRequest('/audit/validation/export', {
+      method: 'POST',
+      body: JSON.stringify(filters),
+    }),
+    
+  // Get audit statistics
+  getStatistics: (timeRange?: '24h' | '7d' | '30d') => 
+    apiRequest(`/audit/validation/statistics${timeRange ? `?range=${timeRange}` : ''}`, {
+      method: 'GET',
+    }),
+};
+
+// Real-time Events API functions
+export const realTimeEventsApi = {
+  // Get Server-Sent Events endpoint - for EventSource connections (bypasses Vite proxy)
+  getEventsEndpoint: () => `${BACKEND_API_BASE}/events/validation`,
+  
+  // Get regular HTTP events endpoint - for fetch requests (uses Vite proxy)
+  getHttpEventsEndpoint: () => '/api/v1/events/validation',
+  
+  // Get WebSocket endpoint
+  getWebSocketEndpoint: () => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}/api/v1/ws/validation`;
+  },
+  
+  // Subscribe to specific event types
+  subscribe: (eventTypes: string[], options?: {
+    account_ids?: string[];
+    session_ids?: string[];
+    severity_filter?: 'low' | 'medium' | 'high' | 'critical';
+  }) => 
+    apiRequest('/events/validation/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ event_types: eventTypes, ...options }),
+    }),
+    
+  // Unsubscribe from events
+  unsubscribe: (subscriptionId: string) => 
+    apiRequest(`/events/validation/unsubscribe/${subscriptionId}`, {
+      method: 'DELETE',
+    }),
+    
+  // Get event history
+  getEventHistory: (filters?: {
+    event_types?: string[];
+    since?: string;
+    limit?: number;
+    account_id?: string;
+    session_id?: string;
+  }) => 
+    apiRequest(`/events/validation/history${filters ? `?${new URLSearchParams(Object.entries(filters).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : String(v)]))}` : ''}`, {
+      method: 'GET',
+    }),
+};
+
+// Dashboard and Analytics API functions
+export const dashboardAnalyticsApi = {
+  // Get comprehensive dashboard data
+  getDashboardData: (timeRange?: '24h' | '7d' | '30d') => 
+    apiRequest(`/dashboard/validation${timeRange ? `?range=${timeRange}` : ''}`, {
+      method: 'GET',
+    }),
+    
+  // Get JIT health metrics
+  getJitHealthMetrics: (timeRange?: '24h' | '7d' | '30d') => 
+    apiRequest(`/dashboard/jit-health${timeRange ? `?range=${timeRange}` : ''}`, {
+      method: 'GET',
+    }),
+    
+  // Get system health breakdown
+  getSystemHealthBreakdown: (timeRange?: '24h' | '7d' | '30d') => 
+    apiRequest(`/dashboard/system-health${timeRange ? `?range=${timeRange}` : ''}`, {
+      method: 'GET',
+    }),
+    
+  // Get validation trends
+  getValidationTrends: (timeRange?: '24h' | '7d' | '30d', granularity?: 'hour' | 'day' | 'week') => 
+    apiRequest(`/dashboard/validation-trends${timeRange || granularity ? `?${new URLSearchParams(Object.entries({ range: timeRange, granularity }).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}` : ''}`, {
+      method: 'GET',
+    }),
+    
+  // Get top failure patterns
+  getFailurePatterns: (timeRange?: '24h' | '7d' | '30d', limit?: number) => 
+    apiRequest(`/dashboard/failure-patterns${timeRange || limit ? `?${new URLSearchParams(Object.entries({ range: timeRange, limit }).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}` : ''}`, {
+      method: 'GET',
+    }),
+};
+
+// User Experience and Preferences API functions
+export const userPreferencesApi = {
+  // Get user notification preferences (cached to prevent rapid duplicate calls)
+  getNotificationPreferences: () => 
+    cachedApiRequest('/user/preferences/notifications', {
+      method: 'GET',
+    }),
+    
+  // Update notification preferences
+  updateNotificationPreferences: async (preferences: {
+    email_notifications?: boolean;
+    in_app_notifications?: boolean;
+    critical_failures_only?: boolean;
+    validation_success_notifications?: boolean;
+    jit_session_notifications?: boolean;
+    notification_frequency?: 'immediate' | 'hourly' | 'daily';
+    quiet_hours?: { start: string; end: string };
+  }) => {
+    const result = await apiRequest('/user/preferences/notifications', {
+      method: 'PUT',
+      body: JSON.stringify(preferences),
+    });
+    // Clear cache after successful update
+    clearApiCache('/user/preferences/notifications');
+    return result;
+  },
+    
+  // Get dashboard preferences (cached to prevent rapid duplicate calls)
+  getDashboardPreferences: () => 
+    cachedApiRequest('/user/preferences/dashboard', {
+      method: 'GET',
+    }),
+    
+  // Update dashboard preferences
+  updateDashboardPreferences: async (preferences: {
+    default_time_range?: '24h' | '7d' | '30d';
+    visible_widgets?: string[];
+    widget_order?: string[];
+    auto_refresh?: boolean;
+    refresh_interval?: number;
+    theme?: 'light' | 'dark' | 'auto';
+  }) => {
+    const result = await apiRequest('/user/preferences/dashboard', {
+      method: 'PUT',
+      body: JSON.stringify(preferences),
+    });
+    // Clear cache after successful update
+    clearApiCache('/user/preferences/dashboard');
+    return result;
+  },
+    
+  // Get search and filter preferences
+  getSearchPreferences: () => 
+    apiRequest('/user/preferences/search', {
+      method: 'GET',
+    }),
+    
+  // Save search filter preset
+  saveSearchPreset: (preset: {
+    name: string;
+    description?: string;
+    filters: Record<string, any>;
+    is_default?: boolean;
+  }) => 
+    apiRequest('/user/preferences/search/presets', {
+      method: 'POST',
+      body: JSON.stringify(preset),
+    }),
+    
+  // Get saved search presets
+  getSearchPresets: () => 
+    apiRequest('/user/preferences/search/presets', {
+      method: 'GET',
+    }),
+    
+  // Delete search preset
+  deleteSearchPreset: (presetId: string) => 
+    apiRequest(`/user/preferences/search/presets/${presetId}`, {
+      method: 'DELETE',
+    }),
+};

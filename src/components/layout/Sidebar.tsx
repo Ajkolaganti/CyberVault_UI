@@ -22,6 +22,7 @@ interface NavItem {
 
 const accountsSubItems: SubNavItem[] = [
   { name: 'Accounts', href: '/accounts', icon: Users },
+  { name: 'Validation Dashboard', href: '/validation-dashboard', icon: Shield },
   { name: 'Safes', href: '/safes', icon: Vault },
   { name: 'Credential Vault', href: '/vault', icon: Key },
   { name: 'Discovery', href: '/discovery', icon: Search },
